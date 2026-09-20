@@ -5,7 +5,7 @@ import { nodes } from './data/layout';
 import { otherAgents, regById, regForEnzyme } from './data/regulation';
 import { molById } from './data/molecules';
 import type { Selection } from './Diagram';
-import { renderSmiles } from './ketcher';
+import { loadStructures } from './structures';
 
 interface Props {
   selection: NonNullable<Selection>;
@@ -21,7 +21,7 @@ function Structure({ molId, onEdit }: { molId: string; onEdit: Props['onEdit'] }
   useEffect(() => {
     let live = true;
     setSvg(null); setErr(false);
-    if (m?.smiles) renderSmiles(m.smiles).then((s) => live && setSvg(s)).catch(() => live && setErr(true));
+    if (m?.smiles) loadStructures().then((all) => live && (all[molId] ? setSvg(all[molId]) : setErr(true))).catch(() => live && setErr(true));
     return () => { live = false; };
   }, [molId, m?.smiles]);
   if (!m?.smiles) return null;

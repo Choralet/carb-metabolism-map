@@ -177,12 +177,18 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
-  const [vb, setVb] = useState<View>({ x: 0, y: 0, w: 2300, h: 1400 });
   const [hoverEnz, setHoverEnz] = useState<string | null>(null);
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
   const raf = useRef(0);
   const sizeRef = useRef(size); sizeRef.current = size;
-  const vbRef = useRef(vb); vbRef.current = vb;
+  // The camera lives outside React: pan, pinch, wheel and animations only rewrite the SVG's viewBox attribute.
+  // Going through state re-rendered every edge, pill and label (and re-measured their text) on each touch move,
+  // which is what made panning lag on phones.
+  const vbRef = useRef<View>({ x: 0, y: 0, w: 2300, h: 1400 });
+  const setVb = useCallback((v: View) => {
+    vbRef.current = v;
+    svg.current?.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+  }, []);
 
   // fit a rectangle into the viewport aspect ratio
   const fit = useCallback((v: View, s = sizeRef.current): View => {
@@ -201,7 +207,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
       if (k < 1) raf.current = requestAnimationFrame(step);
     };
     raf.current = requestAnimationFrame(step);
-  }, []);
+  }, [setVb]);
 
   useLayoutEffect(() => {
     const el = wrap.current!;
@@ -211,7 +217,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
     setSize(s);
     setVb(fit({ x: 560, y: 0, w: 1020, h: 1120 }, s));
     return () => ro.disconnect();
-  }, [fit]);
+  }, [fit, setVb]);
 
   useEffect(() => { if (focus.n > 0) animate(fit(focus.view)); }, [focus, animate, fit]);
 
@@ -231,7 +237,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [setVb]);
 
   /**
    * Pointer gestures: one pointer pans, two pinch-zoom. Touch, pen and mouse all arrive as
@@ -260,32 +266,40 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
     }
   };
 
+  const gestureFrame = useRef(0);
+  /** Applies the current finger positions to the camera; runs at most once per animation frame. */
+  const applyGesture = useCallback(() => {
+    gestureFrame.current = 0;
+    const el = svg.current;
+    if (!el) return;
+    const g = pinch.current;
+    if (g && ptrs.current.size >= 2) {
+      const [a, b] = [...ptrs.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const r = el.getBoundingClientRect();
+      const w = Math.min(Math.max(g.vb.w * (g.d / dist), 350), 5200);
+      const h = g.vb.h * (w / g.vb.w);
+      // hold the document point under the pinch midpoint still
+      const px = (g.cx - r.left) / r.width, py = (g.cy - r.top) / r.height;
+      const docX = g.vb.x + px * g.vb.w, docY = g.vb.y + py * g.vb.h;
+      const nx = ((a.x + b.x) / 2 - r.left) / r.width, ny = ((a.y + b.y) / 2 - r.top) / r.height;
+      setVb({ x: docX - nx * w, y: docY - ny * h, w, h });
+      return;
+    }
+    const d = drag.current;
+    if (!d || !d.moved || ptrs.current.size !== 1) return;
+    const [p] = [...ptrs.current.values()];
+    const v = vbRef.current, s = sizeRef.current;
+    setVb({ ...v, x: d.vx - ((p.x - d.x) * v.w) / s.w, y: d.vy - ((p.y - d.y) * v.h) / s.h });
+  }, [setVb]);
+
   useEffect(() => {
     const onMove = (m: PointerEvent) => {
       if (!ptrs.current.has(m.pointerId)) return;
       ptrs.current.set(m.pointerId, { x: m.clientX, y: m.clientY });
-      const el = svg.current;
-      const g = pinch.current;
-      if (el && g && ptrs.current.size >= 2) {
-        const [a, b] = [...ptrs.current.values()];
-        const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-        const r = el.getBoundingClientRect();
-        const w = Math.min(Math.max(g.vb.w * (g.d / dist), 350), 5200);
-        const h = g.vb.h * (w / g.vb.w);
-        // hold the document point under the pinch midpoint still
-        const px = (g.cx - r.left) / r.width, py = (g.cy - r.top) / r.height;
-        const docX = g.vb.x + px * g.vb.w, docY = g.vb.y + py * g.vb.h;
-        const nx = ((a.x + b.x) / 2 - r.left) / r.width, ny = ((a.y + b.y) / 2 - r.top) / r.height;
-        setVb({ x: docX - nx * w, y: docY - ny * h, w, h });
-        return;
-      }
       const d = drag.current;
-      if (!d || ptrs.current.size !== 1) return;
-      const dx = m.clientX - d.x, dy = m.clientY - d.y;
-      if (Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
-      if (!d.moved) return;
-      const v = vbRef.current, s = sizeRef.current;
-      setVb({ ...v, x: d.vx - (dx * v.w) / s.w, y: d.vy - (dy * v.h) / s.h });
+      if (d && !d.moved && ptrs.current.size === 1 && Math.abs(m.clientX - d.x) + Math.abs(m.clientY - d.y) > 4) d.moved = true;
+      if (!gestureFrame.current) gestureFrame.current = requestAnimationFrame(applyGesture);
     };
     const onUp = (u: PointerEvent) => {
       if (!ptrs.current.delete(u.pointerId)) return;
@@ -306,8 +320,9 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      cancelAnimationFrame(gestureFrame.current);
     };
-  }, [startPinch]);
+  }, [startPinch, applyGesture]);
 
   /** In quiz mode a hidden block reveals its name first; a second click opens its details. */
   const activate = (s: Selection, hiddenKey: string | null) => (ev: React.MouseEvent | React.KeyboardEvent) => {
@@ -465,7 +480,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
 
   return (
     <div className="canvas" ref={wrap}>
-      <svg ref={svg} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} onPointerDown={onPointerDown} onClick={() => { if (!drag.current?.moved) onSelect(null); }}
+      <svg ref={svg} onPointerDown={onPointerDown} onClick={() => { if (!drag.current?.moved) onSelect(null); }}
         role="img" aria-label="Carbohydrate metabolism pathway map">
         <defs>
           {[...Object.values(classById).map((c) => [c.id, c.color] as const), ['grey', '#94a3b8'] as const].map(([id, col]) => (

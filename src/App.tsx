@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Diagram, { type Selection, type View } from './Diagram';
 import Drawer from './Drawer';
-import { KetcherHost, KetcherModal, renderSmiles } from './ketcher';
 import { classes, enzymes } from './data/enzymes';
 import { cofactors } from './data/cofactors';
 import { edges, jumps } from './data/layout';
-import { molecules } from './data/molecules';
 import { keysFor, type QuizScope, type QuizState } from './quiz';
 import type { CoKey, EnzClass } from './data/types';
+
+// Ketcher (+ the Indigo engine) is ~29 MB, so it is only fetched when someone presses "Edit in Ketcher"
+const KetcherModal = lazy(() => import('./KetcherModal'));
 
 const start: View = { x: 560, y: 0, w: 1020, h: 1120 };
 
@@ -22,6 +23,7 @@ export default function App() {
   const [selection, setSelection] = useState<Selection>(null);
   const [focus, setFocus] = useState<{ view: View; n: number }>({ view: start, n: 0 });
   const [editing, setEditing] = useState<{ title: string; smiles: string } | null>(null);
+  const [everEdited, setEverEdited] = useState(false);
   const [quiz, setQuiz] = useState<QuizState>({ on: false, scope: 'enz', revealed: new Set() });
   const [co, setCo] = useState<Set<CoKey>>(new Set());
   const [showReg, setShowReg] = useState(false);
@@ -37,17 +39,14 @@ export default function App() {
       if (e.key !== 'h' && e.key !== 'H') return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
-      // the real Ketcher editor owns its keys; the off-screen render host does not
+      // the Ketcher editor owns its keys while it is open
       if (t?.closest('.modal')) return;
-      if (!t?.closest('.ketcher-host') && t?.closest('input, textarea, [contenteditable="true"]')) return;
+      if (t?.closest('input, textarea, [contenteditable="true"]')) return;
       setBarOpen((v) => !v);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
-
-  // warm the structure cache so the drawer opens instantly
-  useEffect(() => { molecules.forEach((m) => m.smiles && renderSmiles(m.smiles).catch(() => {})); }, []);
 
   const toggle = (c: EnzClass) => setFilter((f) => { const n = new Set(f); n.has(c) ? n.delete(c) : n.add(c); return n; });
   const toggleCo = (c: CoKey) => setCo((f) => { const n = new Set(f); n.has(c) ? n.delete(c) : n.add(c); return n; });
@@ -152,11 +151,15 @@ export default function App() {
           )}
         </div>
 
-        {selection && <Drawer selection={selection} onClose={() => setSelection(null)} onSelect={setSelection} onEdit={(title, smiles) => setEditing({ title, smiles })} />}
+        {selection && <Drawer selection={selection} onClose={() => setSelection(null)} onSelect={setSelection} onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} />}
       </main>
 
-      <KetcherHost />
-      <KetcherModal target={editing} onClose={() => setEditing(null)} />
+      {/* once opened, the editor stays mounted (hidden) — see KetcherModal */}
+      {everEdited && (
+        <Suspense fallback={editing && <div className="modal-back"><div className="loading-card">Loading editor…</div></div>}>
+          <KetcherModal target={editing} onClose={() => setEditing(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }

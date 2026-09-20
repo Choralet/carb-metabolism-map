@@ -28,10 +28,21 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      // Ketcher's Indigo engine is one very large chunk, so raise the precache ceiling
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,woff2,wasm}'],
-        maximumFileSizeToCacheInBytes: 40 * 1024 * 1024,
+        // Precache only the app shell + structure drawings (~0.4 MB gzip). Ketcher and its Indigo engine (~29 MB) are the
+        // lazily loaded "Edit in Ketcher" feature: precaching them would make every first visit download ~30 MB
+        // in the background, so they are cached at runtime the first time someone actually opens the editor.
+        globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        globIgnores: ['**/KetcherModal-*', '**/index.modern-*', '**/lodash-*'],
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            // anything under /assets/ that was not precached (i.e. the Ketcher chunks)
+            urlPattern: ({ url }) => url.pathname.includes('/assets/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'lazy-assets', expiration: { maxEntries: 30 } },
+          },
+        ],
       },
     }),
   ],

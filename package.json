@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "structures": "node scripts/gen-structures.mjs"
   },
   "dependencies": {
     "ketcher-core": "^3.18.0",
