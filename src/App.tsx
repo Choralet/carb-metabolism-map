@@ -3,8 +3,8 @@ import Diagram, { type Selection, type View } from './Diagram';
 import Drawer from './Drawer';
 import { classes, enzymes } from './data/enzymes';
 import { cofactors } from './data/cofactors';
-import { edges, jumps } from './data/layout';
-import { keysFor, type QuizScope, type QuizState } from './quiz';
+import { desktopScene, edges, phoneScene } from './data/layout';
+import { allKinds, keysFor, type QuizKind, type QuizState } from './quiz';
 import type { CoKey, EnzClass } from './data/types';
 
 // Ketcher (+ the Indigo engine) is ~29 MB, so it is only fetched when someone presses "Edit in Ketcher"
@@ -12,19 +12,30 @@ const KetcherModal = lazy(() => import('./KetcherModal'));
 
 const start: View = { x: 560, y: 0, w: 1020, h: 1120 };
 
-const scopes: { id: QuizScope; label: string; hint: string }[] = [
-  { id: 'enz', label: 'Enzymes', hint: 'Hide every enzyme name; metabolites stay visible' },
-  { id: 'met', label: 'Metabolites', hint: 'Hide every metabolite name; enzymes stay visible' },
-  { id: 'both', label: 'Both', hint: 'Hide enzyme and metabolite names together' },
+const kindChips: { id: QuizKind; label: string; hint: string }[] = [
+  { id: 'enz', label: 'Enzymes', hint: 'Hide every enzyme name' },
+  { id: 'met', label: 'Metabolites', hint: 'Hide every metabolite name (substrates and products)' },
+  { id: 'tag', label: 'Cofactors & products', hint: 'Hide the labels on the arrows, such as ATP → ADP or − H₂O' },
 ];
 
+/** Portrait phones get their own, narrower layout of the shuttle diagrams. */
+const phoneQuery = '(max-width: 720px)';
+
 export default function App() {
+  const [phone, setPhone] = useState(() => window.matchMedia(phoneQuery).matches);
+  useEffect(() => {
+    const m = window.matchMedia(phoneQuery);
+    const on = () => setPhone(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  const scene = phone ? phoneScene : desktopScene;
   const [filter, setFilter] = useState<Set<EnzClass>>(new Set());
   const [selection, setSelection] = useState<Selection>(null);
   const [focus, setFocus] = useState<{ view: View; n: number }>({ view: start, n: 0 });
   const [editing, setEditing] = useState<{ title: string; smiles: string } | null>(null);
   const [everEdited, setEverEdited] = useState(false);
-  const [quiz, setQuiz] = useState<QuizState>({ on: false, scope: 'enz', revealed: new Set() });
+  const [quiz, setQuiz] = useState<QuizState>({ on: false, kinds: new Set(allKinds), revealed: new Set() });
   const [co, setCo] = useState<Set<CoKey>>(new Set());
   const [showReg, setShowReg] = useState(false);
   // per-viewer convenience only, so a blocked/cleared store just falls back to open
@@ -64,11 +75,16 @@ export default function App() {
     return m;
   }, []);
 
-  const inPlay = useMemo(() => keysFor(quiz.scope), [quiz.scope]);
+  const inPlay = useMemo(() => keysFor(quiz.kinds), [quiz.kinds]);
   const done = inPlay.filter((k) => quiz.revealed.has(k)).length;
 
   const reveal = useCallback((key: string) => setQuiz((q) => ({ ...q, revealed: new Set(q.revealed).add(key) })), []);
-  const setScope = (scope: QuizScope) => setQuiz((q) => ({ ...q, scope }));
+  // any combination, but never none: with nothing hidden there is nothing to quiz
+  const toggleKind = (k: QuizKind) => setQuiz((q) => {
+    const kinds = new Set(q.kinds);
+    if (kinds.has(k)) { if (kinds.size > 1) kinds.delete(k); } else kinds.add(k);
+    return { ...q, kinds };
+  });
   const startQuiz = (on: boolean) => { setQuiz((q) => ({ ...q, on, revealed: new Set() })); setSelection(null); };
 
   return (
@@ -92,9 +108,9 @@ export default function App() {
         {barOpen && (quiz.on ? (
           <div className="quizbar" role="group" aria-label="Quiz controls">
             <span className="label">Hide</span>
-            {scopes.map((s) => (
-              <button key={s.id} className={`chip quiz${quiz.scope === s.id ? ' on' : ''}`} onClick={() => setScope(s.id)} title={s.hint} aria-pressed={quiz.scope === s.id}>
-                {s.label}
+            {kindChips.map((k) => (
+              <button key={k.id} className={`chip quiz${quiz.kinds.has(k.id) ? ' on' : ''}`} onClick={() => toggleKind(k.id)} title={k.hint} aria-pressed={quiz.kinds.has(k.id)}>
+                {k.label}
               </button>
             ))}
             <span className="progress" aria-live="polite">
@@ -128,7 +144,7 @@ export default function App() {
         {barOpen && (
           <nav className="jumps" aria-label="Jump to section">
             <span className="label">Go to</span>
-            {jumps.map((j) => (
+            {scene.jumps.map((j) => (
               <button key={j.id} onClick={() => setFocus((f) => ({ view: j, n: f.n + 1 }))}>{j.label}</button>
             ))}
           </nav>
@@ -136,7 +152,7 @@ export default function App() {
       </header>
 
       <main>
-        <Diagram filter={filter} co={co} showReg={showReg} selection={selection} onSelect={setSelection} focus={focus} quiz={quiz} onReveal={reveal} />
+        <Diagram scene={scene} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={setSelection} focus={focus} quiz={quiz} onReveal={reveal} />
 
         <div className="legend" aria-label="Legend">
           <div><svg width="46" height="12"><path d="M2,6 H38" stroke="#475569" strokeWidth="4.5" /><path d="M36,1 L45,6 L36,11z" fill="#475569" /></svg> irreversible</div>

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { bands, CANVAS, captions, decor, edges, nodes, regions } from './data/layout';
+import { decor } from './data/layout';
 import { classById, enzById } from './data/enzymes';
 import { molById } from './data/molecules';
 import { regBlocks } from './data/regulation';
 import type { RegBlock } from './data/regulation';
-import { isHidden, nodeQuizKind, type QuizState } from './quiz';
-import type { CoKey, EnzClass, Edge, MapNode } from './data/types';
+import { isHidden, nodeQuizKind, tagKey, type QuizState } from './quiz';
+import type { CoKey, EnzClass, Edge, MapNode, Scene } from './data/types';
 
 export type Selection = { kind: 'enz' | 'node' | 'card' | 'reg'; id: string } | null;
 export interface View { x: number; y: number; w: number; h: number }
@@ -31,6 +31,7 @@ function measure(text: string, size: number, weight = 500): number {
 }
 
 const PILL_MAX = 152;
+const TAGQ_W = 34, TAGQ_H = 24; // the "?" that stands in for a hidden reaction label
 const LINE_H = 14;
 const wcache = new Map<string, string[]>();
 
@@ -107,9 +108,9 @@ function along(pts: P[], t: number): P {
   return pts[0];
 }
 
-const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
+type NodeMap = Record<string, MapNode>;
 
-function route(e: Edge): Routed {
+function route(e: Edge, nodeMap: NodeMap): Routed {
   const A = nodeBox(nodeMap[e.from]), B = nodeBox(nodeMap[e.to]);
   let pts: P[];
   if (e.via) pts = [A.c, ...e.via.map(([x, y]) => ({ x, y })), B.c];
@@ -129,7 +130,6 @@ function route(e: Edge): Routed {
   return { pts, mid: along(pts, e.t ?? 0.5) };
 }
 
-const routed = new Map(edges.map((e) => [e.id, route(e)]));
 
 // ── regulation blocks ─────────────────────────────────────────────
 interface RegRow { sym: string; lines: string[]; w: number; h: number; kind: 'act' | 'inh' }
@@ -137,7 +137,7 @@ interface RegGeom { rows: RegRow[]; w: number; h: number; c: P; anchor: P }
 
 const REG_MAX = 196;
 
-function regGeom(r: RegBlock): RegGeom {
+function regGeom(r: RegBlock, nodeMap: NodeMap, routed: Map<string, Routed>): RegGeom {
   const rows: RegRow[] = [];
   const add = (kind: 'act' | 'inh', text: string) => {
     const lines = wrapText(text, 12, 600, REG_MAX);
@@ -156,13 +156,26 @@ function regGeom(r: RegBlock): RegGeom {
   };
 }
 
-const regGeoms = new Map(regBlocks.map((r) => [r.id, regGeom(r)]));
+/** Node lookup, routed edges and regulation blocks for one scene; computed once per scene. */
+interface Geometry { nodeMap: NodeMap; routed: Map<string, Routed>; regGeoms: Map<string, RegGeom> }
+const geometries = new WeakMap<Scene, Geometry>();
+function geometryOf(scene: Scene): Geometry {
+  let g = geometries.get(scene);
+  if (!g) {
+    const nodeMap: NodeMap = Object.fromEntries(scene.nodes.map((n) => [n.id, n]));
+    const routed = new Map(scene.edges.map((e) => [e.id, route(e, nodeMap)]));
+    g = { nodeMap, routed, regGeoms: new Map(regBlocks.map((r) => [r.id, regGeom(r, nodeMap, routed)])) };
+    geometries.set(scene, g);
+  }
+  return g;
+}
 
 // ── helpers ───────────────────────────────────────────────────────
 const clsOf = (enz?: string): EnzClass[] => (enz ? enzById[enz].cls : []);
 const colorOf = (enz?: string) => (enz ? classById[enzById[enz].cls[0]].color : '#94a3b8');
 
 interface Props {
+  scene: Scene;
   filter: Set<EnzClass>;
   co: Set<CoKey>;
   showReg: boolean;
@@ -173,7 +186,9 @@ interface Props {
   onReveal: (key: string) => void;
 }
 
-export default function Diagram({ filter, co, showReg, selection, onSelect, focus, quiz, onReveal }: Props) {
+export default function Diagram({ scene, filter, co, showReg, selection, onSelect, focus, quiz, onReveal }: Props) {
+  const { nodeMap, routed, regGeoms } = geometryOf(scene);
+  const { canvas, nodes, edges, regions, bands, captions } = scene;
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 1200, h: 800 });
@@ -350,7 +365,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
     edges.forEach((e) => { if (edgeOn(e)) { s.add(e.from); s.add(e.to); if (e.feed) s.add(e.feed); if (e.out) s.add(e.out); } });
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, co]);
+  }, [filter, co, scene]);
   const nodeOn = (n: MapNode) => {
     if (!filtering) return true;
     if (n.kind === 'card') return true;
@@ -377,6 +392,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
 
     const showPill = !!enz && !e.noPill && e.style !== 'link';
     const hidden = showPill && isHidden(quiz, 'enz', enz!.id);
+    const tagHidden = !!e.tags && isHidden(quiz, 'tag', tagKey(e));
     const box = !showPill ? { lines: [] as string[], w: 0, h: 0 } : hidden ? { lines: ['?'], w: 42, h: 24 } : pillBox(enzLabel(enz!.id));
     const p = r.mid;
     let tx = p.x, ty = p.y, anchor: 'start' | 'end' | 'middle' = 'middle';
@@ -410,7 +426,16 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
         <path d={d} className="edge-line" stroke={color} strokeWidth={sw} strokeDasharray={dash} fill="none"
           markerEnd={marker} markerStart={e.dir === 'both' ? marker : undefined} />
         {clickable && <path d={d} className="edge-hit" onClick={activate(sel, null)} />}
-        {e.tags && <text x={tx} y={ty} textAnchor={anchor} className="tag">{e.tags}</text>}
+        {e.tags && (tagHidden
+          ? (
+            // the label's text stays out of the DOM entirely; the "?" sits where the text would start
+            <g className="pill hidden" transform={`translate(${anchor === 'start' ? tx + TAGQ_W / 2 : anchor === 'end' ? tx - TAGQ_W / 2 : tx},${ty - 4 + (pos === 'above' ? -6 : pos === 'below' ? 6 : 0)})`}
+              onClick={activate(null, tagKey(e))} onKeyDown={onKey(null, tagKey(e))} tabIndex={0} role="button" aria-label="Hidden label, click to reveal">
+              <rect x={-TAGQ_W / 2} y={-TAGQ_H / 2} width={TAGQ_W} height={TAGQ_H} rx={9} />
+              <PillText lines={['?']} />
+            </g>
+          )
+          : <text x={tx} y={ty} textAnchor={anchor} className="tag">{e.tags}</text>)}
         {showPill && (
           <g className={`pill${hidden ? ' hidden' : ''}`} transform={`translate(${p.x},${p.y})`}
             onClick={activate(sel, hidden ? enz!.id : null)} onKeyDown={onKey(sel, hidden ? enz!.id : null)}
@@ -499,7 +524,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
           ))}
         </defs>
 
-        <rect x={-2000} y={-2000} width={CANVAS.w + 4000} height={CANVAS.h + 4000} className="bg" />
+        <rect x={-2000} y={-2000} width={canvas.w + 4000} height={canvas.h + 4000} className="bg" />
 
         {regions.map((r) => (
           <g key={r.id} className="region">
@@ -580,7 +605,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
       <div className="zoom">
         <button onClick={() => zoomBy(0.7)} aria-label="Zoom in">+</button>
         <button onClick={() => zoomBy(1.4)} aria-label="Zoom out">−</button>
-        <button onClick={() => animate(fit({ x: 0, y: 0, w: CANVAS.w, h: CANVAS.h }))} aria-label="Fit whole map" title="Whole map">⤢</button>
+        <button onClick={() => animate(fit({ x: 0, y: 0, w: canvas.w, h: canvas.h }))} aria-label="Fit whole map" title="Whole map">⤢</button>
       </div>
     </div>
   );

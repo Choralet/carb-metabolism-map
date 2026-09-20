@@ -1,4 +1,4 @@
-import type { Band, Caption, Decor, Edge, JumpView, MapNode, Region } from './types';
+import type { Band, Caption, Decor, Edge, JumpView, MapNode, Region, Scene } from './types';
 
 export const CANVAS = { w: 2500, h: 4720 };
 
@@ -234,3 +234,60 @@ export const jumps: JumpView[] = [
   { id: 'j_oxp', label: 'Oxidative phosphorylation', x: 700, y: 3200, w: 1780, h: 680 },
   { id: 'j_shuttle', label: 'NADH shuttles', x: 600, y: 3820, w: 1840, h: 850 },
 ];
+
+export const desktopScene: Scene = { canvas: CANVAS, nodes, edges, regions, bands, captions, jumps };
+
+/**
+ * Portrait-phone scene. The map is one big canvas, so on a ~390 px screen the 1100-unit-wide shuttle panels shrink to
+ * ~35% and their text is unreadable. Here each shuttle is re-laid out tall and narrow (~700 × 1200) with a *horizontal*
+ * membrane — intermembrane space (P side) above, matrix (N side) below — and the two panels are stacked. Only positions,
+ * a few label placements and the connector waypoints differ; every node/edge id, enzyme and filter tag is the same.
+ */
+const phoneNodes: Record<string, { x: number; y: number }> = {
+  // malate–aspartate: columns Mal x=730 · Glu x=870 · α-KG x=1000 · OAA/Asp x=1190; membrane band at y≈4520
+  ma_mal_p: { x: 730, y: 4110 }, ma_oaa_p: { x: 1190, y: 4110 }, ma_asp_p: { x: 1190, y: 4405 },
+  ma_glu_p: { x: 870, y: 4215 }, ma_akg_p: { x: 1000, y: 4305 },
+  ma_mal_n: { x: 730, y: 4930 }, ma_oaa_n: { x: 1190, y: 4930 }, ma_asp_n: { x: 1190, y: 4635 },
+  ma_glu_n: { x: 870, y: 4825 }, ma_akg_n: { x: 1000, y: 4735 },
+  ma_nadh: { x: 960, y: 5020 }, ma_net: { x: 960, y: 5100 },
+  // glycerol 3-phosphate: spine x=970, membrane band at y≈5790
+  g3_dhap: { x: 970, y: 5390 }, g3_g3p: { x: 970, y: 5650 }, g3_qh2: { x: 1190, y: 5790 }, g3_net: { x: 970, y: 5890 },
+};
+
+const phoneEdges: Record<string, Partial<Edge>> = {
+  e_ma_mdh_p: { tagPos: 'above' },
+  e_ma_mdh_n: { tagPos: 'above' },
+  e_ma_out: { via: [[1340, 5020], [1340, 3830], [960, 3830]] },
+  e_g3_out: { via: [[1400, 5790], [1400, 3885], [1360, 3885]] },
+};
+
+const phoneRegions: Record<string, Region> = {
+  r_ma: { id: 'r_ma', title: 'MALATE–ASPARTATE SHUTTLE · heart, liver, kidney', x: 620, y: 3910, w: 700, h: 1240, tone: '#f0f9ff' },
+  r_g3: { id: 'r_g3', title: 'GLYCEROL 3-PHOSPHATE SHUTTLE · muscle, brain', x: 620, y: 5190, w: 700, h: 740, tone: '#f7fee7' },
+};
+
+export const phoneScene: Scene = {
+  canvas: { w: CANVAS.w, h: 6000 },
+  nodes: nodes.map((n) => ({ ...n, ...phoneNodes[n.id] })),
+  edges: edges.map((e) => ({ ...e, ...phoneEdges[e.id] })),
+  regions: regions.map((r) => phoneRegions[r.id] ?? r),
+  bands: [
+    { id: 'b_ma', x: 650, y: 4480, w: 650, h: 80 },
+    { id: 'b_g3', x: 650, y: 5740, w: 640, h: 100 },
+  ],
+  captions: [
+    { x: 650, y: 4020, text: 'INTERMEMBRANE SPACE (P side)' },
+    { x: 1057, y: 4525, text: 'MEMBRANE', anchor: 'middle' },
+    { x: 650, y: 5062, text: 'MATRIX (N side)' },
+    { x: 650, y: 5275, text: 'INTERMEMBRANE SPACE (P side)' },
+    { x: 665, y: 5795, text: 'INNER MEMBRANE' },
+    { x: 1290, y: 5862, text: 'MATRIX (N side) ↓', anchor: 'end' },
+  ],
+  jumps: [
+    ...jumps.filter((j) => j.id !== 'j_shuttle'),
+    // x starts ~120 units left of the panels so the zoom buttons (top-left overlay) don't sit on the titles;
+    // the G3P view is taller than its panel so the panel sits at the top of the screen, not centred with leftovers of the other
+    { id: 'j_ma', label: 'Malate–aspartate', x: 500, y: 3880, w: 830, h: 1300 },
+    { id: 'j_g3', label: 'Glycerol 3-P shuttle', x: 500, y: 5170, w: 830, h: 1360 },
+  ],
+};

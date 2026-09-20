@@ -56,3 +56,9 @@ export interface JumpView { id: string; label: string; x: number; y: number; w: 
 export interface Band { id: string; x: number; y: number; w: number; h: number }
 /** Free-standing small caption, e.g. "MATRIX (N side)". */
 export interface Caption { x: number; y: number; text: string; anchor?: 'start' | 'middle' | 'end' }
+
+/** Everything that has a position on the map. There is a desktop scene and a portrait-phone scene; ids are identical in both. */
+export interface Scene {
+  canvas: { w: number; h: number };
+  nodes: MapNode[]; edges: Edge[]; regions: Region[]; bands: Band[]; captions: Caption[]; jumps: JumpView[];
+}
