@@ -42,6 +42,8 @@ export interface Edge {
   off?: number; via?: [number, number][]; t?: number;
   tags?: string; tagPos?: 'r' | 'l' | 'below' | 'above';
   style?: 'gng' | 'feed' | 'link' | 'plain'; noPill?: boolean; feed?: string;
+  /** Co-product node: a dotted arrow from the pill to this node (mirror of `feed`, which points into the pill). */
+  out?: string;
   /** Cofactors this step consumes or produces, for the cofactor filter. */
   co?: CoKey[];
 }
@@ -49,3 +51,8 @@ export interface Edge {
 export interface Region { id: string; title: string; x: number; y: number; w: number; h: number; tone: string; right?: boolean }
 export interface Decor { x: number; y: number; label: string; dir: 'down' | 'up' }
 export interface JumpView { id: string; label: string; x: number; y: number; w: number; h: number }
+
+/** A membrane strip drawn behind nodes (the shuttle diagrams need vertical/horizontal bilayers of their own). */
+export interface Band { id: string; x: number; y: number; w: number; h: number }
+/** Free-standing small caption, e.g. "MATRIX (N side)". */
+export interface Caption { x: number; y: number; text: string; anchor?: 'start' | 'middle' | 'end' }

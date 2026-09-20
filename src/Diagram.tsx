@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CANVAS, decor, edges, nodes, regions } from './data/layout';
+import { bands, CANVAS, captions, decor, edges, nodes, regions } from './data/layout';
 import { classById, enzById } from './data/enzymes';
 import { molById } from './data/molecules';
 import { regBlocks } from './data/regulation';
@@ -347,7 +347,7 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
   const activeNodes = useMemo(() => {
     const s = new Set<string>();
     if (!filtering) return s;
-    edges.forEach((e) => { if (edgeOn(e)) { s.add(e.from); s.add(e.to); } });
+    edges.forEach((e) => { if (edgeOn(e)) { s.add(e.from); s.add(e.to); if (e.feed) s.add(e.feed); if (e.out) s.add(e.out); } });
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, co]);
@@ -394,10 +394,19 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
       feed = <path d={`M${s.x},${s.y} L${p.x},${p.y}`} className="feedline" stroke={color} markerEnd={`url(#ah-${enz!.cls[0]})`} />;
     }
 
+    // dotted arrow from the pill to a co-product node
+    let outLine: React.JSX.Element | null = null;
+    if (e.out) {
+      const O = nodeBox(nodeMap[e.out]);
+      const t = clip(O, O.c, p);
+      outLine = <path d={`M${p.x},${p.y} L${t.x},${t.y}`} className="feedline" stroke={color} markerEnd={`url(#ah-${enz!.cls[0]})`} />;
+    }
+
     return (
       <g key={e.id} className={`edge${on ? '' : ' off'}${hot ? ' hot' : ''}`}
         onMouseEnter={() => enz && setHoverEnz(enz.id)} onMouseLeave={() => setHoverEnz(null)}>
         {feed}
+        {outLine}
         <path d={d} className="edge-line" stroke={color} strokeWidth={sw} strokeDasharray={dash} fill="none"
           markerEnd={marker} markerStart={e.dir === 'both' ? marker : undefined} />
         {clickable && <path d={d} className="edge-hit" onClick={activate(sel, null)} />}
@@ -513,6 +522,12 @@ export default function Diagram({ filter, co, showReg, selection, onSelect, focu
           <text x={2380} y={3560} textAnchor="end">↓ INTERMEMBRANE SPACE</text>
         </g>
         <text x={1560} y={2610} textAnchor="middle" className="region-title sub">CITRIC ACID CYCLE</text>
+
+        {/* membrane strips + captions of the two NADH-shuttle diagrams */}
+        <g className="membrane">
+          {bands.map((b) => <rect key={b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={10} />)}
+          {captions.map((c, i) => <text key={i} x={c.x} y={c.y} textAnchor={c.anchor ?? 'start'}>{c.text}</text>)}
+        </g>
 
         {edges.map(renderEdge)}
 

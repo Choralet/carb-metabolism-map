@@ -1,6 +1,6 @@
-import type { Decor, Edge, JumpView, MapNode, Region } from './types';
+import type { Band, Caption, Decor, Edge, JumpView, MapNode, Region } from './types';
 
-export const CANVAS = { w: 2500, h: 3950 };
+export const CANVAS = { w: 2500, h: 4720 };
 
 /**
  * Coordinates are hand-placed so the reading order stays clean; nothing is auto-laid-out.
@@ -83,6 +83,25 @@ export const nodes: MapNode[] = [
   { id: 'c_inhib', label: 'Inhibitors & uncouplers', x: 1850, y: 3760, kind: 'card', card: 'c_inhib' },
   { id: 'c_yield', label: 'ATP yield per glucose', x: 2200, y: 3760, kind: 'card', card: 'c_yield' },
   { id: 'c_mito', label: 'Electron transport chain', x: 1450, y: 3320, kind: 'card', card: 'c_mito' },
+  // ───────── NADH shuttles (below the mitochondrion) ─────────
+  // Malate–aspartate: intermembrane-space (P) column x = 850, matrix (N) column x = 1490, membrane at x = 1170.
+  { id: 'ma_mal_p', x: 850, y: 4090, mol: 'mal' },
+  { id: 'ma_oaa_p', x: 850, y: 4260, mol: 'oaa' },
+  { id: 'ma_asp_p', x: 850, y: 4470, mol: 'asp' },
+  { id: 'ma_glu_p', x: 1010, y: 4310, mol: 'glu' },
+  { id: 'ma_akg_p', x: 1010, y: 4420, mol: 'akg' },
+  { id: 'ma_mal_n', x: 1490, y: 4090, mol: 'mal' },
+  { id: 'ma_oaa_n', x: 1490, y: 4260, mol: 'oaa' },
+  { id: 'ma_asp_n', x: 1490, y: 4470, mol: 'asp' },
+  { id: 'ma_glu_n', x: 1330, y: 4310, mol: 'glu' },
+  { id: 'ma_akg_n', x: 1330, y: 4420, mol: 'akg' },
+  { id: 'ma_nadh', label: 'NADH', x: 1605, y: 4175, kind: 'small' },
+  { id: 'ma_net', label: 'Net: cytosolic NADH → matrix NADH (enters at Complex I)', x: 1170, y: 4590, kind: 'proc' },
+  // Glycerol 3-phosphate shuttle: spine x = 2080, membrane band along the bottom.
+  { id: 'g3_dhap', x: 2080, y: 4110, mol: 'dhap' },
+  { id: 'g3_g3p', x: 2080, y: 4370, mol: 'g3pgly' },
+  { id: 'g3_qh2', label: 'QH₂', x: 2330, y: 4510, kind: 'small' },
+  { id: 'g3_net', label: 'Net: cytosolic NADH → QH₂ (enters at Complex III)', x: 2080, y: 4600, kind: 'proc' },
 ];
 
 export const edges: Edge[] = [
@@ -152,6 +171,23 @@ export const edges: Edge[] = [
   { id: 'e_5a', from: 'cx5', to: 'atp', enz: 'atps', noPill: true, tags: 'ADP + Pi →', tagPos: 'l', co: ['ATP', 'Pi'] },
   { id: 'e_ma', from: 'sh_ma', to: 'cx1', style: 'plain', tags: '≈ 2.5 ATP / NADH', tagPos: 'l', co: ['ATP', 'NADH'] },
   { id: 'e_g3', from: 'sh_g3p', to: 'q', style: 'plain', tags: '≈ 1.5 ATP / NADH', tagPos: 'r', co: ['ATP', 'NADH'] },
+  // Malate–aspartate shuttle: cytosolic side (P) → across → matrix side (N) → back
+  { id: 'e_ma_mdh_p', from: 'ma_oaa_p', to: 'ma_mal_p', enz: 'mdh', tags: 'NADH → NAD⁺', tagPos: 'l', co: ['NADH'] },
+  { id: 'e_ma_mkt', from: 'ma_mal_p', to: 'ma_mal_n', enz: 'mkt', t: 0.5 },
+  { id: 'e_ma_mdh_n', from: 'ma_mal_n', to: 'ma_oaa_n', enz: 'mdh', tags: 'NAD⁺', tagPos: 'l', out: 'ma_nadh', co: ['NADH'] },
+  { id: 'e_ma_aat_n', from: 'ma_oaa_n', to: 'ma_asp_n', enz: 'aat', feed: 'ma_glu_n', out: 'ma_akg_n' },
+  { id: 'e_ma_gat', from: 'ma_asp_n', to: 'ma_asp_p', enz: 'gat', t: 0.5 },
+  { id: 'e_ma_aat_p', from: 'ma_asp_p', to: 'ma_oaa_p', enz: 'aat', feed: 'ma_akg_p', out: 'ma_glu_p' },
+  // the other two legs of the transamination loop cross the membrane on the same two transporters
+  { id: 'e_ma_glu_x', from: 'ma_glu_p', to: 'ma_glu_n', enz: 'gat', noPill: true },
+  { id: 'e_ma_akg_x', from: 'ma_akg_n', to: 'ma_akg_p', enz: 'mkt', noPill: true },
+  // hand-off to the respiratory chain (via the summary node above)
+  { id: 'e_ma_out', from: 'ma_nadh', to: 'sh_ma', style: 'plain', via: [[1605, 3830], [960, 3830]], co: ['NADH'] },
+
+  // Glycerol 3-phosphate shuttle
+  { id: 'e_g3_cyt', from: 'g3_dhap', to: 'g3_g3p', enz: 'gpdhc', off: -80, t: 0.45, tags: 'NADH → NAD⁺', tagPos: 'l', co: ['NADH'] },
+  { id: 'e_g3_mit', from: 'g3_g3p', to: 'g3_dhap', enz: 'gpdhm', off: 80, t: 0.55, tags: 'FAD → FADH₂', tagPos: 'r', out: 'g3_qh2', co: ['FADH2'] },
+  { id: 'e_g3_out', from: 'g3_qh2', to: 'sh_g3p', style: 'plain', via: [[2330, 3885], [1360, 3885]], co: ['FADH2'] },
 ];
 
 export const regions: Region[] = [
@@ -161,6 +197,23 @@ export const regions: Region[] = [
   { id: 'r_ppp', title: 'PENTOSE PHOSPHATE PATHWAY', x: 1520, y: 170, w: 840, h: 790, tone: '#fdf2f8' },
   { id: 'r_ferm', title: 'FERMENTATION (no O₂)', x: 20, y: 1780, w: 560, h: 380, tone: '#fff7ed' },
   { id: 'r_mito', title: 'MITOCHONDRION · matrix', x: 620, y: 2060, w: 1800, h: 1800, tone: '#f5f3ff', right: true },
+  { id: 'r_ma', title: 'MALATE–ASPARTATE SHUTTLE · heart, liver, kidney', x: 620, y: 3910, w: 1100, h: 730, tone: '#f0f9ff' },
+  { id: 'r_g3', title: 'GLYCEROL 3-PHOSPHATE SHUTTLE · muscle, brain', x: 1740, y: 3910, w: 680, h: 730, tone: '#f7fee7' },
+];
+
+/** Membrane strips inside the shuttle diagrams. */
+export const bands: Band[] = [
+  { id: 'b_ma', x: 1130, y: 4030, w: 80, h: 500 },
+  { id: 'b_g3', x: 1770, y: 4460, w: 630, h: 100 },
+];
+
+export const captions: Caption[] = [
+  { x: 850, y: 3995, text: 'INTERMEMBRANE SPACE (P side)', anchor: 'middle' },
+  { x: 1490, y: 3995, text: 'MATRIX (N side)', anchor: 'middle' },
+  { x: 1170, y: 4552, text: 'INNER MEMBRANE', anchor: 'middle' },
+  { x: 2080, y: 3995, text: 'INTERMEMBRANE SPACE (P side)', anchor: 'middle' },
+  { x: 1785, y: 4515, text: 'INNER MEMBRANE', anchor: 'start' },
+  { x: 2395, y: 4580, text: 'MATRIX (N side) ↓', anchor: 'end' },
 ];
 
 export const decor: Decor[] = [
@@ -179,4 +232,5 @@ export const jumps: JumpView[] = [
   { id: 'j_ferm', label: 'Fermentation', x: 0, y: 1740, w: 1300, h: 460 },
   { id: 'j_tca', label: 'Citric acid cycle', x: 620, y: 2080, w: 1800, h: 1180 },
   { id: 'j_oxp', label: 'Oxidative phosphorylation', x: 700, y: 3200, w: 1780, h: 680 },
+  { id: 'j_shuttle', label: 'NADH shuttles', x: 600, y: 3820, w: 1840, h: 850 },
 ];

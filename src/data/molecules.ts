@@ -36,6 +36,7 @@ export const molecules: Molecule[] = [
   { id: 'fru', name: 'Fructose', smiles: 'C1[C@H]([C@@H]([C@@H](C(O1)(CO)O)O)O)O' },
   { id: 'gal', name: 'Galactose', smiles: 'C([C@@H]1[C@@H]([C@@H]([C@H](C(O1)O)O)O)O)O' },
   { id: 'man', name: 'Mannose', smiles: 'C([C@@H]1[C@H]([C@@H]([C@@H](C(O1)O)O)O)O)O' },
+  { id: 'glu', name: 'Glutamate', smiles: 'C(CC(=O)O)[C@@H](C(=O)O)N', note: 'Amino-group donor/acceptor in the malate–aspartate shuttle: made from α-ketoglutarate by transamination.' },
   { id: 'asp', name: 'Aspartate', smiles: 'C([C@@H](C(=O)O)N)C(=O)O' },
   { id: 'g3pgly', name: 'Glycerol 3-phosphate', smiles: 'C([C@@H](COP(=O)(O)O)O)O' },
 ];

@@ -71,7 +71,7 @@ export const cards: Card[] = [
       '3) In the matrix, malate passes 2 reducing equivalents to NAD⁺; the NADH is oxidized by the respiratory chain.',
       '4) Oxaloacetate is transaminated to aspartate. 5) Aspartate leaves via the glutamate-aspartate transporter. 6) Oxaloacetate is regenerated in the cytosol.',
       'Yield ≈ 2.5 ATP per NADH, giving 32 ATP per glucose.',
-    ], mols: ['mal', 'oaa', 'asp'], slide: 'Part II · slides 18–19, 26' },
+    ], mols: ['mal', 'oaa', 'asp', 'glu', 'akg'], slide: 'Part II · slides 18–19, 26' },
   { id: 'sh_g3p', title: 'Glycerol 3-phosphate shuttle', sub: 'Muscle and brain. Electrons enter at ubiquinone (Complex III)',
     bullets: [
       'In the cytosol, DHAP accepts 2 reducing equivalents from NADH via cytosolic glycerol 3-phosphate dehydrogenase.',
