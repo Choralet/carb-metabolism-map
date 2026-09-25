@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import Diagram, { type Selection, type View } from './Diagram';
 import Drawer from './Drawer';
 import { classById, enzById } from './data/enzymes';
+import { onPlate } from './data/plate';
 import { desktopScene, phoneScene } from './data/scene';
 import { inExam, type CoKey, type EnzClass, type ExamTag, type Scene, type Scope } from './data/types';
 import { allKinds, keyPlates, keysFor, loadQuiz, questionOf, quizKeys, saveQuiz, type Answer, type QuizKind, type QuizSave, type QuizState } from './quiz';
@@ -226,7 +227,7 @@ export default function App() {
     if (w !== 'plate') { setWhere({ kind: w }); return; }
     const v = currentView();
     const cx = v ? v.x + v.w / 2 : 0, cy = v ? v.y + v.h / 2 : 0;
-    const r = scene.regions.find((x) => cx >= x.x && cx <= x.x + x.w && cy >= x.y && cy <= x.y + x.h)
+    const r = scene.regions.find((x) => onPlate(x, cx, cy))
       ?? [...scene.regions].sort((a, b) => Math.hypot(a.x + a.w / 2 - cx, a.y + a.h / 2 - cy) - Math.hypot(b.x + b.w / 2 - cx, b.y + b.h / 2 - cy))[0];
     if (r) setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
   };

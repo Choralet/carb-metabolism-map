@@ -162,6 +162,14 @@ export function Key({ open, onToggle, showReg }: { open: boolean; onToggle: () =
             <span className="k-xref">▸ PLATE n</span>
             <span>same molecule on another plate</span>
           </div>
+          <div className="key-row">
+            <svg width="46" height="14" aria-hidden="true"><path className="k-dot" d="M2,7 H44" /></svg>
+            <span>same molecule, drawn twice</span>
+          </div>
+          <div className="key-row">
+            <svg width="46" height="14" aria-hidden="true"><rect className="k-frame" x="2" y="1" width="42" height="12" rx="1.5" /></svg>
+            <span>another organ, or a close-up</span>
+          </div>
           <div className="key-types">
             {(['kinase', 'isomerase', 'dehydrogenase', 'lyase', 'hydrolase', 'transferase', 'ligase', 'other'] as EnzClass[]).map((c) => (
               <span key={c} className="key-type"><svg width="12" height="12" viewBox="-6 -6 12 12" aria-hidden="true"><path className={`mk mk-${c}`} d={markPath(c)} /></svg>{shortClass[c]}</span>

@@ -6,7 +6,7 @@ import type { Band, Caption, Edge, JumpView, Label, MapNode, Part, Rect, Region,
  * contents. Nodes and edges may refer to nodes on other plates by id: that is how the plates join into one map.
  */
 export interface PlateDef {
-  id: string; plate: number; part: Part; title: string; sub?: string; x?: number; y?: number; w: number; h: number; right?: boolean; outside?: boolean; titleX?: number;
+  id: string; plate: number; part: Part; title: string; sub?: string; x?: number; y?: number; w: number; h: number; right?: boolean; outside?: boolean; inset?: boolean; titleX?: number;
   /** Extra rectangles (map coordinates) for an L-shaped plate. */
   more?: Rect[];
   nodes: MapNode[]; edges: Edge[]; bands?: Band[]; captions?: Caption[]; labels?: Label[]; jumps?: JumpView[];
@@ -15,14 +15,15 @@ export interface PlateDef {
 export function place(p: PlateDef, dx = 0, dy = 0): Scene {
   const x = (p.x ?? 0) + dx, y = (p.y ?? 0) + dy;
   const region: Region = {
-    id: p.id, plate: p.plate, part: p.part, title: p.title, sub: p.sub, x, y, w: p.w, h: p.h, right: p.right, outside: p.outside, titleX: p.titleX,
+    id: p.id, plate: p.plate, part: p.part, title: p.title, sub: p.sub, x, y, w: p.w, h: p.h, right: p.right, outside: p.outside, inset: p.inset, titleX: p.titleX,
     more: p.more?.map((r) => ({ ...r, x: r.x + dx, y: r.y + dy })),
   };
   return {
     canvas: { w: x + p.w, h: y + p.h },
     regions: [region],
     nodes: p.nodes.map((n) => ({ ...n, x: n.x + dx, y: n.y + dy })),
-    edges: p.edges.map((e) => (e.via ? { ...e, via: e.via.map(([a, b]) => [a + dx, b + dy] as [number, number]) } : e)),
+    // every step belongs to the plate that defines it, even when it starts from a molecule on another plate
+    edges: p.edges.map((e) => ({ plate: p.id, ...e, ...(e.via ? { via: e.via.map(([a, b]) => [a + dx, b + dy] as [number, number]) } : {}) })),
     bands: (p.bands ?? []).map((b) => ({ ...b, x: b.x + dx, y: b.y + dy })),
     captions: (p.captions ?? []).map((c) => ({ ...c, x: c.x + dx, y: c.y + dy })),
     labels: (p.labels ?? []).map((l) => ({ ...l, x: l.x + dx, y: l.y + dy })),

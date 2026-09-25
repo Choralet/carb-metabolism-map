@@ -100,6 +100,8 @@ const latinUpper = (s: string) => s.replace(/[a-z]+/g, (w) => w.toUpperCase());
 const examsOf = (ps: Place[]): Exam[] => (['mid', 'final'] as const).filter((x) => ps.some((p) => p.exam === x || p.exam === 'both'));
 /** The exam a place's plate belongs to (for colouring). */
 const plateExam = (p?: Place): Exam => (p?.plate && (p.plate.part === 'III' || p.plate.part === 'IV') ? 'final' : 'mid');
+/** The drawer's colour: the item's own exam (a final card can sit on a midterm plate), or its plate's when both use it. */
+const accentOf = (p?: Place): Exam => (p?.exam === 'mid' || p?.exam === 'final' ? p.exam : plateExam(p));
 
 function Kicker({ exams, plate, what }: { exams: Exam[]; plate?: { plate: number; title: string }; what: string }) {
   return (
@@ -262,7 +264,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
   }
 
   return (
-    <aside className={`drawer ${plateExam(here)}`} aria-live="polite">
+    <aside className={`drawer ${accentOf(here)}`} aria-live="polite">
       <div className="drawer-tools">
         <button className={`icon-btn${copied ? ' done' : ''}`} onClick={() => onCopyLink().then((ok) => setCopied(ok))}
           aria-label={copied ? 'Link copied' : 'Copy a link to this'} title={copied ? 'Link copied' : 'Copy a link to this (opens here, at this view)'}>

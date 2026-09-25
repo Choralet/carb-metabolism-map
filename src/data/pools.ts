@@ -21,8 +21,8 @@ export const POOL: Record<string, 'mit' | 'cyt' | 'shorter' | 'longer'> = {
   // acyl-ACP before and after a round of synthesis
   lf_acyl2: 'longer',
   // citric acid cycle intermediates and their shuttles
-  oaa: 'mit', ma_oaa_n: 'mit', ls_oaa_m: 'mit',
-  ma_oaa_p: 'cyt', ls_oaa_c: 'cyt', nu_oaa_c: 'cyt',
+  oaa: 'mit', ma_oaa_n: 'mit', ls_oaa_m: 'mit', oaag_m: 'mit',
+  ma_oaa_p: 'cyt', ls_oaa_c: 'cyt', nu_oaa_c: 'cyt', oaag: 'cyt',
   mal: 'mit', ma_mal_n: 'mit', ls_mal_m: 'mit',
   ma_mal_p: 'cyt', ls_mal_c: 'cyt', nu_mal: 'cyt',
   cit: 'mit', ls_cit_c: 'cyt',
@@ -36,6 +36,8 @@ export const POOL: Record<string, 'mit' | 'cyt' | 'shorter' | 'longer'> = {
   ma_glu_n: 'mit', ng_glu2: 'mit', nu_glu: 'mit', ma_glu_p: 'cyt', nt_glu: 'cyt',
   ng_gln2: 'mit', nu_gln: 'mit', nu_nh4: 'mit',
   nu_orn_m: 'mit', nu_orn_c: 'cyt', nu_cit_m: 'mit', nu_cit_c: 'cyt',
+  // carbamoyl phosphate: CPS I makes it in the matrix for the urea cycle, CPS II in the cytosol for pyrimidines
+  nu_cp: 'mit', ny_cp: 'cyt',
 };
 
 export const POOL_LABEL: Record<string, string> = { mit: 'matrix', cyt: 'cytosol', shorter: 'Cₙ₋₂', longer: 'Cₙ₊₂' };

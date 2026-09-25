@@ -67,6 +67,11 @@ export default async function smoke({ browser, base, check: ok }) {
   ok(finPlates === finalPlates && finOut === 0, `Final keeps every final plate at full strength (${finPlates}/${finalPlates})`);
   ok(!(await p.locator('[data-node="accoa"].out').count()), 'a molecule both exams use (acetyl-CoA) stays lit in Final');
   ok((await p.locator('[data-edge="e_hk"].out').count()) > 0, 'a midterm-only step (hexokinase) fades in Final');
+  ok(!(await p.locator('[data-edge="e_pc"].out').count()), 'a step both exams name (pyruvate carboxylase, Part III slide 41) stays lit in Final');
+  // Part IV slide 19 draws the citric acid cycle without naming its enzymes
+  ok(!(await p.locator('g.eline[data-edge="e_idh"].out').count()) && (await p.locator('g.elabel-g[data-edge="e_idh"].out').count()) === 1,
+    'Final keeps the citric acid cycle\'s arrows lit but fades their midterm enzyme names');
+  ok((await p.locator('g.reg.out[aria-label="Regulation of Citrate synthase"]').count()) === 1, 'a shared step\'s regulation (Part II) fades in Final');
   ok((await p.locator('svg[data-lod]').getAttribute('viewBox')) === vb0, 'switching exams does not move the camera');
   await p.locator('.scope button', { hasText: 'Midterm' }).click();
   await p.waitForTimeout(300);

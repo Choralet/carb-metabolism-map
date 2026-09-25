@@ -3,8 +3,9 @@ import type { RegBlock } from '../regulation';
 const S = 'Part III · slides ';
 
 /**
- * The two enzymes that coordinate fatty acid synthesis with β-oxidation (slides 36–39). Anchored to their arrows on
- * Plates 16 and 11; ids follow `'r_' + enzyme id` so the enzyme drawer finds them.
+ * The two enzymes that coordinate fatty acid synthesis with β-oxidation (slides 36–39). Anchored to their arrows
+ * (acetyl-CoA carboxylase on the fatty acid synthesis plate, carnitine acyltransferase I on the carnitine shuttle's);
+ * ids follow `'r_' + enzyme id` so the enzyme drawer finds them.
  */
 export const lipidReg: RegBlock[] = [
   {

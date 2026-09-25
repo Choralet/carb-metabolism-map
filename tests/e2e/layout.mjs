@@ -20,15 +20,16 @@ export default async function layout({ browser, base, check: ok }) {
       const ys = [bb.x, bb.x + bb.width].flatMap((x) => [bb.y, bb.y + bb.height].map((y) => m.b * x + m.d * y + m.f));
       return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
     };
-    /** What a piece of text belongs to: an arrow, a node, or another drawn group. */
+    /** What a piece of text belongs to: an arrow, a node, a plate (its tab and title), or another drawn group. */
     const owner = (el) => {
       const e = el.closest('[data-edge]'); if (e) return `arrow ${e.getAttribute('data-edge')}`;
       const n = el.closest('[data-node]'); if (n) return `node ${n.getAttribute('data-node')}`;
+      const p = el.closest('[data-plate]'); if (p) return `plate ${p.getAttribute('data-plate')}`;
       return (el.closest('g')?.getAttribute('class') ?? '').split(' ')[0];
     };
     const texts = [];
     svg.querySelectorAll('text').forEach((t) => {
-      if (!t.textContent.trim() || t.closest('.far-only, .far-title, .plate-tabt')) return;
+      if (!t.textContent.trim() || t.closest('.far-only, .far-title')) return;
       if (getComputedStyle(t).display === 'none') return;
       const b = box(t);
       if (b.x1 - b.x0 >= 1) texts.push({ ...b, text: t.textContent.slice(0, 36), own: owner(t) });

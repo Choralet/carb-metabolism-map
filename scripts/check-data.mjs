@@ -10,6 +10,9 @@ import { regBlocks } from '../src/data/regulation.ts';
 import { cofactors } from '../src/data/cofactors.ts';
 import { POOL } from '../src/data/pools.ts';
 import { onPlate } from '../src/data/plate.ts';
+import { SHARED, SHARED_LINES } from '../src/data/atlas.ts';
+import { MOVED_NODES } from '../src/data/moved.ts';
+import { examOfSlide } from '../src/data/types.ts';
 
 const errors = [];
 const warnings = [];
@@ -43,6 +46,7 @@ for (const c of cards) {
   for (const m of c.mols ?? []) if (!mol.has(m)) err(`card ${c.id}: unknown molecule "${m}"`);
 }
 for (const r of regBlocks) if (!r.slide?.trim()) err(`regulation ${r.id}: no slide citation`);
+for (const m of molecules) if (m.isA && !mol.has(m.isA)) err(`molecule ${m.id}: isA names unknown molecule "${m.isA}"`);
 
 function checkScene(scene, name) {
   const nodes = byId(scene.nodes, `${name} node`);
@@ -78,10 +82,17 @@ function checkScene(scene, name) {
     for (const c of e.co ?? []) if (!coIds.has(c)) err(`${at}: unknown cofactor "${c}"`);
     if (e.tags && e.tags.includes('→') && e.tags.replace('→', '').trim() === '') err(`${at}: empty reaction label`);
     if (e.from === e.to) err(`${at}: starts and ends at the same node`);
-    // a dotted link says "this is the same molecule", so both ends must draw the same one
+    if (e.plate && !regions.has(e.plate)) err(`${at}: belongs to unknown plate "${e.plate}"`);
+    // a dotted link says "this is the same molecule", so both ends must draw it (a node may draw several)
     if (e.style === 'link' && nodes.has(e.from) && nodes.has(e.to)) {
-      const a = nodes.get(e.from), b = nodes.get(e.to);
-      if (a.mol && b.mol && a.mol !== b.mol) err(`${at}: dotted link joins different molecules (${a.mol}, ${b.mol})`);
+      const mols = (n) => (n.mol ? [n.mol] : n.mols ?? []);
+      const a = mols(nodes.get(e.from)), b = mols(nodes.get(e.to));
+      if (a.length && b.length && !a.some((m) => b.includes(m))) err(`${at}: dotted link joins different molecules (${a.join('+')}, ${b.join('+')})`);
+    }
+    // a step's exam follows the slides its enzyme is cited from: a final step's enzyme cites Part III or IV, and so on
+    if (e.enz && enz.has(e.enz)) {
+      const cited = examOfSlide(enz.get(e.enz).slide), exam = e.exam ?? 'mid';
+      if (cited !== 'both' && exam !== cited) err(`${at}: a ${exam === 'both' ? 'shared' : exam} step, but ${e.enz} is cited only from ${cited === 'mid' ? 'Parts I–II' : 'Parts III–IV'}`);
     }
   }
   for (const j of scene.jumps) if (j.plate && !regions.has(j.plate)) err(`${name} view ${j.id}: unknown plate "${j.plate}"`);
@@ -100,6 +111,20 @@ function checkScene(scene, name) {
 }
 
 const deskNodes = checkScene(desktopScene, 'desktop');
+
+// steps shared by both exams (atlas.ts) are midterm steps that exist
+const deskEdges = new Map(desktopScene.edges.map((e) => [e.id, e]));
+for (const id of [...SHARED, ...SHARED_LINES]) {
+  const e = deskEdges.get(id);
+  const home = e?.plate && desktopScene.regions.find((r) => r.id === e.plate);
+  if (!e) err(`atlas.ts: shared step "${id}" is not on the map`);
+  else if (home && (home.part === 'III' || home.part === 'IV')) err(`atlas.ts: shared step "${id}" belongs to a final plate; only midterm steps are shared`);
+}
+// removed node ids point at the node that replaced them, and never shadow a live one
+for (const [from, to] of MOVED_NODES) {
+  if (deskNodes.has(from)) err(`moved.ts: "${from}" is still a node on the map`);
+  if (!deskNodes.has(to)) err(`moved.ts: "${from}" moves to unknown node "${to}"`);
+}
 if (phoneScene !== desktopScene) checkScene(phoneScene, 'phone');
 
 // everything defined should be drawn somewhere

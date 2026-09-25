@@ -3,7 +3,7 @@ import { cardById } from './data/cards';
 import { enzById } from './data/enzymes';
 import { regBlocks } from './data/regulation';
 import { isHidden, nodeQuizKind, resultClass, tagKey, type QuizState } from './quiz';
-import type { CoKey, EnzClass, Edge, Exam, ExamTag, MapNode, Region, Scene, Scope } from './data/types';
+import { examOfSlide, type CoKey, type EnzClass, type Edge, type Exam, type ExamTag, type MapNode, type Region, type Scene, type Scope } from './data/types';
 import { onPlate } from './data/plate';
 import {
   arcGeom, clip, enzBox, geometryOf, GAP, harpoonPath, HIDDEN_BOX, labelCenter, labelOf, nodeBox, spaced, tagParts, TY,
@@ -47,8 +47,8 @@ interface Props {
 
 export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route }: Props) {
   const { nodeMap, routed, regGeoms, plateOf, bounds } = geometryOf(scene);
-  /** Widest view (map units): enough to see the whole map at once, whichever parts it has. */
-  const MAX_W = Math.max(9000, bounds.both.w + 800);
+  /** Widest view (map units): enough to see the whole map at once, whichever parts it has, on a screen of any shape. */
+  const maxW = () => Math.max(9000, bounds.both.w + 800, ((bounds.both.h + 800) * size.current.w) / size.current.h);
   const { nodes, edges, regions, bands, captions, labels, decor } = scene;
   const compartments = scene.compartments ?? [];
   const wrap = useRef<HTMLDivElement>(null);
@@ -113,7 +113,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       const r = el.getBoundingClientRect();
       const v = vbRef.current;
       const f = Math.exp(ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0012));
-      const w = Math.min(Math.max(v.w * f, MIN_W), MAX_W), k = w / v.w;
+      const w = Math.min(Math.max(v.w * f, MIN_W), maxW()), k = w / v.w;
       const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
       const cx = v.x + px * v.w, cy = v.y + py * v.h;
       setVb({ x: cx - px * v.w * k, y: cy - py * v.h * k, w, h: v.h * k });
@@ -159,7 +159,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       const [a, b] = [...ptrs.current.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
       const r = el.getBoundingClientRect();
-      const w = Math.min(Math.max(g.vb.w * (g.d / dist), MIN_W), MAX_W);
+      const w = Math.min(Math.max(g.vb.w * (g.d / dist), MIN_W), maxW());
       const h = g.vb.h * (w / g.vb.w);
       // hold the document point under the pinch midpoint still
       const px = (g.cx - r.left) / r.width, py = (g.cy - r.top) / r.height;
@@ -217,7 +217,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   };
 
   const zoomBy = (f: number) => {
-    const v = vbRef.current, w = Math.min(Math.max(v.w * f, MIN_W), MAX_W), k = w / v.w;
+    const v = vbRef.current, w = Math.min(Math.max(v.w * f, MIN_W), maxW()), k = w / v.w;
     animate({ x: v.x + (v.w - v.w * k) / 2, y: v.y + (v.h - v.h * k) / 2, w, h: v.h * k });
   };
 
@@ -299,7 +299,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const tabW = spaced(tab, 9.5, 500, 'mono', 0.12) + 20;
     const rects = [r, ...(r.more ?? [])];
     return (
-      <g key={r.id} className={`plate ${ex}${r.outside ? ' outside' : ''}${inScope({ exam: ex }) ? '' : ' out'}`}>
+      <g key={r.id} className={`plate ${ex}${r.outside || r.inset ? ' outside' : ''}${inScope({ exam: ex }) ? '' : ' out'}`} data-plate={r.id}>
         <path className="plate-tab" d={`M${r.x},${r.y} v-16 h${tabW} l9,16 z`} />
         <text className="plate-tabt" x={r.x + 10} y={r.y - 4.5}>{tab}</text>
         {rects.map((q, i) => <rect key={`s${i}`} className="plate-bg edge" x={q.x} y={q.y} width={q.w} height={q.h} rx={3} />)}
@@ -350,7 +350,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const clickable = !!enz && style !== 'link';
     const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
     const onRoute = !!route?.edges.has(e.id);
-    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}`;
+    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope({ exam: e.lineExam ?? e.exam }) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}`;
 
     // co-substrate curving into the label / co-product curving out of it
     const box = enz && !e.noPill && style !== 'link' ? enzBox(enz.id) : { w: 0, h: 0 };
@@ -568,9 +568,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   const renderReg = () => regBlocks.map((r) => {
     const g = regGeoms.get(r.id);
     if (!g) return null;
-    const anchorExam: ExamTag = 'edge' in r.anchor
-      ? exOf(edges.find((e) => e.id === (r.anchor as { edge: string }).edge) ?? {})
-      : exOf(nodeMap[(r.anchor as { node: string }).node] ?? {});
+    const anchorExam: ExamTag = examOfSlide(r.slide);
     const box: Box = { c: g.c, hw: g.w / 2 + 6, hh: g.h / 2 + 6 };
     const from = clip(box, g.c, g.anchor);
     let to: P;

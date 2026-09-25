@@ -57,10 +57,10 @@ export const lipidMolecules: Molecule[] = [
   { id: 'kacp', name: 'β-Ketoacyl-ACP', smiles: cx('*CC(=O)CC(=O)S*', 'R', 'ACP'), note: 'In the first round: acetoacetyl-ACP.' },
   { id: 'hacp', name: 'β-Hydroxyacyl-ACP', smiles: cx('*CC(O)CC(=O)S*', 'R', 'ACP') },
   { id: 'eacp', name: 'trans-Δ²-Enoyl-ACP', smiles: cx('*C/C=C/C(=O)S*', 'R', 'ACP') },
-  { id: 'palmitate', name: 'Palmitate', smiles: FA('C'.repeat(15)), note: '16:0. The main product of fatty acid synthase, released when the chain reaches 16 carbons.' },
+  { id: 'palmitate', name: 'Palmitate', isA: 'fa', smiles: FA('C'.repeat(15)), note: '16:0. The main product of fatty acid synthase, released when the chain reaches 16 carbons.' },
 
   // ── elongation and desaturation ──
-  { id: 'stearate', name: 'Stearate', smiles: FA('C'.repeat(17)), note: '18:0.' },
+  { id: 'stearate', name: 'Stearate', isA: 'fa', smiles: FA('C'.repeat(17)), note: '18:0.' },
   { id: 'palmitoleate', name: 'Palmitoleate', smiles: FA('CCCCCC/C=C\\CCCCCCC'), note: '16:1(Δ⁹), cis double bond between C-9 and C-10.' },
   { id: 'oleate', name: 'Oleate', smiles: FA('CCCCCCCC/C=C\\CCCCCCC'), note: '18:1(Δ⁹), cis.' },
   { id: 'linoleate', name: 'Linoleate', smiles: FA('CCCCC/C=C\\C/C=C\\CCCCCCC'), note: '18:2(Δ⁹,¹²). Essential: animals cannot make it from oleate, so it must come from food (ω-6).' },

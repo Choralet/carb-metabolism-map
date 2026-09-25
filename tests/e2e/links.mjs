@@ -53,6 +53,17 @@ export default async function links({ browser, base, check: ok }) {
   const a = await view(), b = await view(p2);
   ok(Math.abs(a[0] + a[2] / 2 - (b[0] + b[2] / 2)) < 3 && Math.abs(a[2] - b[2]) < 3, 'opening the copied link frames the same view');
 
+  // a molecule node removed when the plates were joined opens the one that replaced it
+  const p4 = await ctx.newPage();
+  await p4.goto(`${base}#mol/ns_cit`, { waitUntil: 'networkidle' }); await p4.waitForSelector('svg[data-lod]');
+  ok((await p4.locator('.drawer h2').innerText().catch(() => '')) === 'Citrate', 'an old link to a removed copy opens the molecule that replaced it');
+  // a plate made of several rectangles is framed whole: the urea cycle's matrix steps are in view
+  const p5 = await ctx.newPage();
+  await p5.goto(`${base}#plate/23`, { waitUntil: 'networkidle' }); await p5.waitForSelector('svg[data-lod]');
+  const [ux, uy, uw, uh] = await view(p5);
+  const cps = desktopScene.nodes.find((n) => n.id === 'nu_cp');
+  ok(cps.x > ux && cps.x < ux + uw && cps.y > uy && cps.y < uy + uh, `#plate/23 frames the whole L-shaped plate (carbamoyl phosphate at ${cps.x}, ${cps.y})`);
+
   // an unknown id just opens the map
   const p3 = await ctx.newPage();
   await p3.goto(`${base}#enz/does_not_exist`, { waitUntil: 'networkidle' }); await p3.waitForSelector('svg[data-lod]');

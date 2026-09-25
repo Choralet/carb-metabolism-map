@@ -37,7 +37,12 @@ interface Arc { to: string; edge: Edge; fromNode: string; toNode: string; cost: 
  * nothing more detailed connects.
  */
 const SUMMARY = 12;
-const costOf = (e: Edge, a: string, b: string) => (e.enz || baseOf(a) === baseOf(b) ? 1 : SUMMARY);
+/**
+ * A gluconeogenic bypass (a dashed arrow) costs a little more, so of two equally short routes the one along the main
+ * pathway wins: glucose → palmitate takes pyruvate dehydrogenase, not pyruvate carboxylase, into the matrix.
+ */
+const BYPASS = 0.1;
+const costOf = (e: Edge, a: string, b: string) => (e.enz || baseOf(a) === baseOf(b) ? 1 : SUMMARY) + (e.style === 'gng' ? BYPASS : 0);
 
 const graphs = new WeakMap<Scene, Map<string, Arc[]>>();
 
@@ -76,6 +81,8 @@ const PLATE_CHANGE = 0.3;
 /**
  * The best drawn route from one molecule to another (fewest steps, preferring named steps over summaries and
  * staying on a plate), starting from any pool of the first and ending in any pool of the second; or null.
+ * A specific molecule may start down its general kind's pathway (palmitate → the fatty acid pathway), but reaching
+ * the kind never counts as reaching the specific molecule: fatty acids from a triacylglycerol are not palmitate.
  */
 export function traceRoute(scene: Scene, from: string, to: string): Route | null {
   if (from === to) return null;
@@ -85,7 +92,8 @@ export function traceRoute(scene: Scene, from: string, to: string): Route | null
   // Dijkstra over (identity, plate) states; the graph has a few hundred arcs, so a sorted array is plenty
   type State = { id: string; plate: number; cost: number; prev: State | null; arc: Arc | null };
   const best = new Map<string, number>();
-  const open: State[] = [...g.keys()].filter((id) => baseOf(id) === from).map((id) => ({ id, plate: -1, cost: 0, prev: null, arc: null }));
+  const kind = molById[from]?.isA;
+  const open: State[] = [...g.keys()].filter((id) => baseOf(id) === from || baseOf(id) === kind).map((id) => ({ id, plate: -1, cost: 0, prev: null, arc: null }));
   while (open.length) {
     open.sort((a, b) => a.cost - b.cost);
     const s = open.shift()!;

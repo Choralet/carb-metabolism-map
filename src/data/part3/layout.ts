@@ -6,7 +6,7 @@ import type { PlateDef } from '../plate.ts';
  * cycle's `accoa` and glycerol 3-phosphate is made from glycolysis's `dhap`, so the pathways join into one map.
  *
  * Membranes (see atlas.ts): the mitochondrion's outer membrane at y 2560–2610, inner membrane at y 2790–2850 along
- * its top edge; its right edge runs down at x 7200–7490.
+ * its top edge; along its right edge the inner membrane is at x 7500–7560 and the outer at x 7740–7790.
  */
 
 // ───────── Plate 9 · dietary fat to the tissues (slides 4–7), a side panel outside the cell ─────────
@@ -112,9 +112,26 @@ export const p12: PlateDef = {
   labels: [{ x: 4520, y: 3530, kind: 'phase', text: 'Repeat', anchor: 'middle', sub: ['palmitoyl-CoA (C₁₆):', '7 passes → 8 acetyl-CoA'] }],
 };
 
-// ───────── Plate 13 · unsaturated fatty acids (slides 16–18), beside β-oxidation ─────────
+// ───────── Plate 13 · odd-chain fatty acids (slide 16): propionyl-CoA up into the cycle's succinyl-CoA ─────────
 export const p13: PlateDef = {
-  id: 'r_l13', plate: 13, part: 'III', title: 'Unsaturated fatty acids', sub: 'two extra enzymes', x: 2960, y: 2890, w: 930, h: 1340,
+  id: 'r_l13', plate: 13, part: 'III', title: 'Odd-chain fatty acids', sub: 'to succinyl-CoA', x: 6720, y: 4430, w: 760, h: 970, right: true,
+  nodes: [
+    { id: 'lp_odd', x: 7200, y: 5300, kind: 'small', label: 'Odd-chain fatty acyl-CoA' },
+    { id: 'lp_prop', x: 7200, y: 5080, mol: 'propcoa' },
+    { id: 'lp_dmm', x: 7200, y: 4840, mol: 'dmmcoa' },
+    { id: 'lp_lmm', x: 6960, y: 4600, mol: 'lmmcoa' },
+  ],
+  edges: [
+    { id: 'e_lp0', from: 'lp_odd', to: 'lp_prop', style: 'plain', tags: 'last round of β-oxidation', tagPos: 'l', plainTag: true },
+    { id: 'e_lp1', from: 'lp_prop', to: 'lp_dmm', enz: 'l_pcc', tags: 'HCO₃⁻ + ATP → ADP + Pi', tagPos: 'l', co: ['ATP', 'Pi', 'Biotin'] },
+    { id: 'e_lp2', from: 'lp_dmm', to: 'lp_lmm', enz: 'l_mme', dir: 'both' },
+    { id: 'e_lp3', from: 'lp_lmm', to: 'succoa', enz: 'l_mut', dir: 'both', t: 0.22, tags: 'coenzyme B₁₂', tagPos: 'r', plainTag: true, co: ['B12'] },
+  ],
+};
+
+// ───────── Plate 14 · unsaturated fatty acids (slides 17–19), beside β-oxidation ─────────
+export const p14: PlateDef = {
+  id: 'r_l14', plate: 14, part: 'III', title: 'Unsaturated fatty acids', sub: 'two extra enzymes', x: 2960, y: 2890, w: 930, h: 1340,
   nodes: [
     { id: 'lo_ole', x: 3180, y: 3010, mol: 'oleoylcoa', label: 'Oleoyl-CoA (cis-9-C18:1)' },
     { id: 'lo_c3', x: 3180, y: 3240, mol: 'c3dodec' },
@@ -156,7 +173,7 @@ export const p15: PlateDef = {
     { id: 'l_c_ketosis', x: 4290, y: 4510, kind: 'card', card: 'l_c_ketosis', label: 'Starvation & diabetes' },
   ],
   edges: [
-    { id: 'e_lk1', from: 'accoa', to: 'lk_kb', enz: 'l_kbf', tags: '→ CoA', tagPos: 'r', co: ['CoA'] },
+    { id: 'e_lk1', from: 'accoa', to: 'lk_kb', enz: 'l_kbf', t: 0.9, tags: '→ CoA', tagPos: 'r', co: ['CoA'] },
     { id: 'e_lk2', from: 'lk_kb', to: 'lk_tis', style: 'plain', tags: 'exported in the blood', tagPos: 'r', plainTag: true },
   ],
 };
@@ -269,11 +286,12 @@ export const p19: PlateDef = {
     { id: 'lh_chol', x: 8700, y: 1540, mol: 'cholesterol' },
     { id: 'lh_preg', x: 8700, y: 1360, mol: 'pregnenolone' },
     { id: 'lh_prog', x: 8700, y: 1180, mol: 'progesterone' },
-    { id: 'lh_cort', x: 8560, y: 980, mol: 'cortisol', badge: 'glucocorticoid' },
-    { id: 'lh_ccs', x: 8560, y: 760, mol: 'corticosterone', badge: 'mineralocorticoid' },
-    { id: 'lh_ald', x: 8560, y: 560, mol: 'aldosterone', badge: 'mineralocorticoid' },
-    { id: 'lh_test', x: 9150, y: 980, mol: 'testosterone' },
-    { id: 'lh_est', x: 9150, y: 760, mol: 'estradiol' },
+    // progesterone branches three ways (slide 47): cortisol · corticosterone → aldosterone · testosterone → estradiol
+    { id: 'lh_cort', x: 8560, y: 960, mol: 'cortisol', badge: 'glucocorticoid' },
+    { id: 'lh_ccs', x: 8900, y: 960, mol: 'corticosterone', badge: 'mineralocorticoid' },
+    { id: 'lh_ald', x: 8900, y: 720, mol: 'aldosterone', badge: 'mineralocorticoid' },
+    { id: 'lh_test', x: 9320, y: 960, mol: 'testosterone' },
+    { id: 'lh_est', x: 9320, y: 720, mol: 'estradiol' },
     { id: 'l_c_chol', x: 9250, y: 1680, kind: 'card', card: 'l_c_chol', label: 'Cholesterol & isoprenoids' },
     { id: 'l_c_steroid', x: 9230, y: 1360, kind: 'card', card: 'l_c_steroid', label: 'Steroid hormones' },
     { id: 'lh_x1', x: 9020, y: 2376, kind: 'xref', link: 'lh_ac', target: 'lf_accoa', label: 'from the citrate shuttle' },
@@ -287,29 +305,12 @@ export const p19: PlateDef = {
     { id: 'e_lh5', from: 'lh_chol', to: 'lh_preg', style: 'plain' },
     { id: 'e_lh6', from: 'lh_preg', to: 'lh_prog', style: 'plain' },
     { id: 'e_lh7', from: 'lh_prog', to: 'lh_cort', style: 'plain' },
-    { id: 'e_lh8', from: 'lh_cort', to: 'lh_ccs', style: 'plain' },
+    { id: 'e_lh8', from: 'lh_prog', to: 'lh_ccs', style: 'plain' },
     { id: 'e_lh9', from: 'lh_ccs', to: 'lh_ald', style: 'plain' },
     { id: 'e_lh10', from: 'lh_prog', to: 'lh_test', style: 'plain' },
     { id: 'e_lh11', from: 'lh_test', to: 'lh_est', style: 'plain' },
   ],
   labels: [{ x: 8850, y: 450, kind: 'phase', text: 'Steroid hormones', sub: ['enzymes not named on the slide'] }],
-};
-
-// ───────── Plate 14 · odd-chain fatty acids (slide 19): propionyl-CoA up into the cycle's succinyl-CoA ─────────
-export const p14: PlateDef = {
-  id: 'r_l14', plate: 14, part: 'III', title: 'Odd-chain fatty acids', sub: 'to succinyl-CoA', x: 6720, y: 4430, w: 760, h: 970, right: true,
-  nodes: [
-    { id: 'lp_odd', x: 7200, y: 5300, kind: 'small', label: 'Odd-chain fatty acyl-CoA' },
-    { id: 'lp_prop', x: 7200, y: 5080, mol: 'propcoa' },
-    { id: 'lp_dmm', x: 7200, y: 4840, mol: 'dmmcoa' },
-    { id: 'lp_lmm', x: 6960, y: 4600, mol: 'lmmcoa' },
-  ],
-  edges: [
-    { id: 'e_lp0', from: 'lp_odd', to: 'lp_prop', style: 'plain', tags: 'last round of β-oxidation', tagPos: 'l', plainTag: true },
-    { id: 'e_lp1', from: 'lp_prop', to: 'lp_dmm', enz: 'l_pcc', tags: 'HCO₃⁻ + ATP → ADP + Pi', tagPos: 'l', co: ['ATP', 'Pi', 'Biotin'] },
-    { id: 'e_lp2', from: 'lp_dmm', to: 'lp_lmm', enz: 'l_mme', dir: 'both' },
-    { id: 'e_lp3', from: 'lp_lmm', to: 'succoa', enz: 'l_mut', dir: 'both', tags: 'coenzyme B₁₂', tagPos: 'l', plainTag: true, co: ['B12'] },
-  ],
 };
 
 export const lipidPlates: PlateDef[] = [p9, p10, p11, p12, p13, p14, p15, p17, p18, p19];

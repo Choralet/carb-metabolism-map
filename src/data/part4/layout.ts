@@ -21,7 +21,7 @@ export const p21: PlateDef = {
     { id: 'nt_ak', x: 8350, y: 3640, mol: 'aketo' },
     { id: 'nt_glu', x: 7960, y: 3900, mol: 'glu', label: 'L-Glutamate' },
     { id: 'nt_x0', x: 8560, y: 3334, kind: 'xref', link: 'nt_aa', target: 'nd_aa', label: 'from digested protein' },
-    { id: 'nt_x1', x: 8350, y: 3726, kind: 'xref', link: 'nt_ak', target: 'akg', label: 'carbon skeletons → citric acid cycle' },
+    { id: 'nt_x1', x: 8350, y: 3726, kind: 'xref', link: 'nt_ak', target: 'n_c_gluco', label: 'carbon skeletons → citric acid cycle' },
     { id: 'n_c_circum', x: 8760, y: 4040, kind: 'card', card: 'n_c_circum', label: 'Three circumstances' },
     { id: 'n_c_overview', x: 8760, y: 4100, kind: 'card', card: 'n_c_overview', label: 'Overview' },
     { id: 'n_c_collect', x: 8760, y: 4160, kind: 'card', card: 'n_c_collect', label: 'Collection points' },
@@ -78,19 +78,20 @@ export const p23: PlateDef = {
     { id: 'e_nu11', from: 'nu_orn_c', to: 'nu_orn_m', style: 'plain' },
     { id: 'e_nu12', from: 'nu_asp_m', to: 'nu_asp_c', style: 'plain', tags: 'to the cytosol', tagPos: 'l', plainTag: true },
     { id: 'e_nu13', from: 'nu_fum', to: 'nu_mal', style: 'plain' },
-    { id: 'e_nu14', from: 'nu_mal', to: 'nu_oaa_c', style: 'plain', tags: 'NAD⁺ → NADH', tagPos: 'above', co: ['NADH'] },
-    { id: 'e_nu15', from: 'nu_oaa_c', to: 'nu_asp_c', enz: 'aat', tags: 'Glutamate → α-Ketoglutarate', tagPos: 'l' },
+    // both directions: slide 18's bullet runs malate → oxaloacetate, its figure aspartate → oxaloacetate → malate
+    { id: 'e_nu14', from: 'nu_mal', to: 'nu_oaa_c', style: 'plain', dir: 'both', tags: 'NAD⁺ → NADH', tagPos: 'above', co: ['NADH'] },
+    { id: 'e_nu15', from: 'nu_oaa_c', to: 'nu_asp_c', enz: 'aat', dir: 'both', tags: 'Glutamate → α-Ketoglutarate', tagPos: 'l' },
   ],
   labels: [{ x: 7600, y: 2120, kind: 'phase', text: 'Urea cycle', anchor: 'middle', sub: ['steps 2–4 in the cytosol'] }],
 };
 
 /**
- * Plate 24 (slide 19), the fates of the carbon skeletons: each group of amino acids points at the molecule its carbon
- * skeleton becomes, on the real pathways (pyruvate, acetyl-CoA, the cycle intermediates, acetoacetyl-CoA). No plate of
- * its own; the boxes sit around the citric acid cycle.
+ * The fates of the carbon skeletons (slide 19): each group of amino acids points at the molecule its carbon skeleton
+ * becomes, on the real pathways (pyruvate, acetyl-CoA, the cycle intermediates, acetoacetyl-CoA). No plate of its own;
+ * the boxes sit around the citric acid cycle, and atlas.ts lights the cycle's arrows in Final because slide 19 draws them.
  */
 export const skeletonNodes: MapNode[] = [
-  { id: 'ns_g1', x: 5850, y: 2090, kind: 'proc', label: 'Ala · Cys · Gly · Ser · Thr · Trp', badge: 'glucogenic' },
+  { id: 'ns_g1', x: 5330, y: 2400, kind: 'proc', label: 'Ala · Cys · Gly · Ser · Thr · Trp', badge: 'glucogenic' },
   { id: 'ns_k2', x: 5860, y: 3290, kind: 'proc', label: 'Ile · Leu · Thr · Trp', badge: 'ketogenic' },
   { id: 'ns_g5', x: 5880, y: 3720, kind: 'proc', label: 'Asn · Asp', badge: 'glucogenic' },
   { id: 'ns_g4', x: 5480, y: 4490, kind: 'proc', label: 'Phe · Tyr', badge: 'glucogenic' },

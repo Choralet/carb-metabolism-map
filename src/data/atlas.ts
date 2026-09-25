@@ -9,10 +9,11 @@ import type { Band, Caption, Compartment, Exam, Scene } from './types';
 /**
  * The whole map as one cell. Carbohydrates run down the middle (glycolysis at x = 5600); lipids sit to the left,
  * nitrogen metabolism to the right, then amino acid synthesis and nucleotides. The mitochondrion takes the lower
- * left: β-oxidation, the citric acid cycle and the urea cycle's matrix steps inside it, with its double membrane
- * along the top (y 2560–2850: outer membrane, intermembrane space, inner membrane) and down the right side
- * (x 7500–7790). Everything that crosses a membrane crosses one of those two edges. Side panels outside the cell
- * hold what happens in other organs: digestion, ketone bodies as fuel, the glucose–alanine cycle.
+ * left: β-oxidation, the citric acid cycle and the urea cycle's matrix steps inside it. Its double membrane is drawn
+ * wide along the top (y 2560–2850: outer membrane, intermembrane space, inner membrane) and down the right side
+ * (x 7500–7790), and every step with a named transporter crosses one of those two edges; elsewhere it is the thin
+ * double outline. Side panels outside the cell hold what happens in other organs: digestion, ketone bodies as fuel,
+ * the glucose–alanine cycle. The two NADH shuttles are close-ups (insets) below the mitochondrion.
  */
 
 /** Plates whose contents are in their own coordinates, and where they go. */
@@ -56,7 +57,7 @@ const bands: Band[] = [
 ];
 
 const captions: Caption[] = [
-  ...[3000, 4700].flatMap((x) => [
+  ...[3180, 4700].flatMap((x) => [
     { x, y: 2545, text: 'CYTOSOL' },
     { x, y: 2640, text: 'OUTER MEMBRANE · INTERMEMBRANE SPACE' },
     { x, y: 2885, text: 'INNER MEMBRANE · MATRIX' },
@@ -76,11 +77,23 @@ const finalScene = tagged(combine([
 ]), 'final');
 
 /**
- * Steps drawn once that belong to both exams: triose phosphate isomerase takes glycerol's carbon into glycolysis
- * (Part III slide 8), and citrate synthase makes the citrate the shuttle exports (Part III slide 25).
+ * Midterm steps that final slides show too, names included: triose phosphate isomerase takes glycerol's carbon into
+ * glycolysis (Part III slide 8); citrate synthase makes the citrate the shuttle exports (Part III slide 25); pyruvate
+ * carboxylase and PEP carboxykinase begin the short gluconeogenesis that makes glycerol 3-phosphate (Part III
+ * slide 41); and the oxaloacetate leaving the matrix is the drain to gluconeogenesis (Part III slide 21, Part IV
+ * slide 19). Each enzyme named here cites a Part III slide; the validator checks that.
  */
-const BOTH = new Set(['e_tpi', 'e_cs']);
-const mid: Scene = { ...midScene, edges: midScene.edges.map((e) => (BOTH.has(e.id) ? { ...e, exam: 'both' } : e)) };
+export const SHARED = new Set(['e_tpi', 'e_cs', 'e_pc', 'e_pepck', 'e_gng_mal']);
+/**
+ * Midterm arrows a final slide draws without naming their enzymes: Part IV slide 19 draws the whole citric acid cycle,
+ * and pyruvate → acetyl-CoA, as the hub the amino acids' carbon skeletons feed. The arrows stay lit in Final; their
+ * enzyme names and cofactors stay midterm (they are not in the Final quiz).
+ */
+export const SHARED_LINES = new Set(['e_pdh', 'e_aco', 'e_idh', 'e_akgdh', 'e_scs', 'e_sdh', 'e_fum', 'e_mdh']);
+const mid: Scene = {
+  ...midScene,
+  edges: midScene.edges.map((e) => (SHARED.has(e.id) ? { ...e, exam: 'both' } : SHARED_LINES.has(e.id) ? { ...e, lineExam: 'both' } : e)),
+};
 
 export const atlas: Scene = {
   ...combine([mid, finalScene]),

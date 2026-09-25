@@ -209,6 +209,11 @@ export interface Geometry {
   regGeoms: Map<string, RegGeom>;
   /** The plate a node sits on (by position). */
   plateOf: Map<string, Region>;
+  /**
+   * The plate a step belongs to: the one that defines it (final plates), else the one under its label, else the one
+   * its first molecule sits on. A step joining two pathways can start on another plate, so `from` alone is not enough.
+   */
+  edgePlate: Map<string, Region>;
   /** Bounding box of each exam's plates, and of the whole map ('both'), for "fit" and the start view. */
   bounds: Record<Exam | 'both', Bounds>;
 }
@@ -232,10 +237,17 @@ export function geometryOf(scene: Scene): Geometry {
   regBlocks.forEach((r) => { const rg = regGeom(r, nodeMap, routed); if (rg) regGeoms.set(r.id, rg); });
   const plateOf = new Map<string, Region>();
   scene.nodes.forEach((n) => { const r = scene.regions.find((x) => onPlate(x, n.x, n.y)); if (r) plateOf.set(n.id, r); });
+  const regionById = new Map(scene.regions.map((r) => [r.id, r]));
+  const edgePlate = new Map<string, Region>();
+  scene.edges.forEach((e) => {
+    const m = routed.get(e.id)!.mid;
+    const r = (e.plate && regionById.get(e.plate)) || scene.regions.find((x) => onPlate(x, m.x, m.y)) || plateOf.get(e.from) || plateOf.get(e.to);
+    if (r) edgePlate.set(e.id, r);
+  });
   const mid = scene.regions.filter((r) => r.part === 'I' || r.part === 'II');
   const fin = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV');
   const bounds = { mid: union(mid), final: union(fin.length ? fin : mid), both: union(scene.regions) };
-  g = { nodeMap, routed, regGeoms, plateOf, bounds };
+  g = { nodeMap, routed, regGeoms, plateOf, edgePlate, bounds };
   geometries.set(scene, g);
   return g;
 }

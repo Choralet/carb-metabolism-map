@@ -1,6 +1,7 @@
 import { enzById } from './data/enzymes';
 import { molById } from './data/molecules';
-import { inExam, type Edge, type ExamTag, type MapNode, type Scene, type Scope } from './data/types';
+import { MOVED_NODES } from './data/moved';
+import { inExam, type Edge, type ExamTag, type MapNode, type Region, type Scene, type Scope } from './data/types';
 import { geometryOf, labelOf } from './map/geometry';
 import { grade as gradeText } from './grade';
 
@@ -51,16 +52,15 @@ export const keysFor = (keys: Record<QuizKind, string[]>, kinds: Set<QuizKind>) 
 
 /** The plates each key appears on (an enzyme can be drawn on several). */
 export function keyPlates(scene: Scene): Map<string, Set<string>> {
-  const { plateOf } = geometryOf(scene);
+  const { plateOf, edgePlate } = geometryOf(scene);
   const out = new Map<string, Set<string>>();
-  const add = (key: string, nodeId: string) => {
-    const r = plateOf.get(nodeId);
+  const add = (key: string, r: Region | undefined) => {
     if (!r) return;
     if (!out.has(key)) out.set(key, new Set());
     out.get(key)!.add(r.id);
   };
-  scene.edges.forEach((e) => { if (e.enz) add(e.enz, e.from); if (e.tags) add(tagKey(e), e.from); });
-  scene.nodes.forEach((n) => { const k = nodeQuizKind(n); if (k === 'enz') add(n.enz!, n.id); else if (k === 'met') add(n.id, n.id); });
+  scene.edges.forEach((e) => { if (e.enz) add(e.enz, edgePlate.get(e.id)); if (e.tags) add(tagKey(e), edgePlate.get(e.id)); });
+  scene.nodes.forEach((n) => { const k = nodeQuizKind(n); if (k === 'enz') add(n.enz!, plateOf.get(n.id)); else if (k === 'met') add(n.id, plateOf.get(n.id)); });
   return out;
 }
 
@@ -110,9 +110,17 @@ const SAVE_KEY = 'atlas-quiz';
 export function loadQuiz(): QuizSave {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) ?? 'null');
-    if (s && typeof s.answers === 'object' && Array.isArray(s.missed)) return s;
+    if (s && typeof s.answers === 'object' && Array.isArray(s.missed)) return moved(s);
   } catch { /* fall through */ }
   return { answers: {}, missed: [] };
+}
+
+/** Answers saved under a molecule node that was since removed count for the node that replaced it. */
+function moved(s: QuizSave): QuizSave {
+  const answers: Record<string, Answer> = {};
+  for (const [k, a] of Object.entries(s.answers)) if (!MOVED_NODES.has(k)) answers[k] = a;
+  for (const [k, a] of Object.entries(s.answers)) { const to = MOVED_NODES.get(k); if (to) answers[to] ??= a; }
+  return { answers, missed: [...new Set(s.missed.map((k) => MOVED_NODES.get(k) ?? k))] };
 }
 export function saveQuiz(s: QuizSave) {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch { /* a blocked store just means no persistence */ }
