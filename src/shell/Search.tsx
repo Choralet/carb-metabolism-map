@@ -12,7 +12,7 @@ import { compact, normalize } from '../text';
 import { CloseIcon, SearchIcon } from './icons';
 
 type Kind = 'enzyme' | 'molecule' | 'overview' | 'plate' | 'regulation';
-interface Entry { key: string; kind: Kind; label: string; alts: string[]; sub: string; cls?: EnzClass; places: Place[]; select: Selection; view?: View }
+interface Entry { key: string; kind: Kind; label: string; alts: string[]; sub: string; cls?: EnzClass; places: Place[]; select: Selection; view?: View; mol?: string }
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const where = (ps: Place[]) => {
@@ -37,7 +37,7 @@ function buildIndex(scene: Scene): Entry[] {
     const places = molPlaces(id, scene);
     if (!places.length) return;
     const extra = places.length > 1 ? ` · drawn ${plural(places.length, 'time')}` : '';
-    out.push({ key: `m:${id}`, kind: 'molecule', label: molById[id].name, alts: [], sub: `Molecule · ${where(places)}${extra}`, places, select: { kind: 'node', id: places[0].nodeId! } });
+    out.push({ key: `m:${id}`, kind: 'molecule', label: molById[id].name, alts: [], sub: `Molecule · ${where(places)}${extra}`, places, select: { kind: 'node', id: places[0].nodeId! }, mol: id });
   });
   scene.nodes.forEach((n) => {
     if (!n.card) return;
@@ -81,10 +81,13 @@ interface Props {
   scope: Scope;
   onClose: () => void;
   onPick: (select: Selection, view: View) => void;
+  /** Molecule-picking mode (for the route tracer): only molecules are listed, and picking one calls this. */
+  pickMolecule?: { prompt: string; onPick: (molId: string) => void };
 }
 
-export default function Search({ scene, scope, onClose, onPick }: Props) {
-  const index = useMemo(() => buildIndex(scene), [scene]);
+export default function Search({ scene, scope, onClose, onPick, pickMolecule }: Props) {
+  const all = useMemo(() => buildIndex(scene), [scene]);
+  const index = useMemo(() => (pickMolecule ? all.filter((e) => e.mol) : all), [all, pickMolecule]);
   const [q, setQ] = useState('');
   const [at, setAt] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -94,7 +97,7 @@ export default function Search({ scene, scope, onClose, onPick }: Props) {
   const results = useMemo(() => {
     const nq = normalize(q), qc = compact(q);
     const inScope = (e: Entry) => e.places.some((p) => scope === 'both' || p.exam === scope);
-    if (!nq) return index.filter((e) => e.kind === 'plate' && inScope(e)).sort((a, b) => a.places[0].plate!.plate - b.places[0].plate!.plate);
+    if (!nq) return pickMolecule ? [] : index.filter((e) => e.kind === 'plate' && inScope(e)).sort((a, b) => a.places[0].plate!.plate - b.places[0].plate!.plate);
     return index
       .map((e) => ({ e, s: score(e, nq, qc) + (inScope(e) ? 8 : 0) }))
       .filter((x) => x.s > 8)
@@ -107,6 +110,7 @@ export default function Search({ scene, scope, onClose, onPick }: Props) {
   useEffect(() => { list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }); }, [at]);
 
   const pick = (e: Entry) => {
+    if (pickMolecule) { if (e.mol) pickMolecule.onPick(e.mol); return; }
     const p = bestPlace(e.places, scope);
     onPick(e.select, e.view ?? viewAround(p));
   };
@@ -122,16 +126,17 @@ export default function Search({ scene, scope, onClose, onPick }: Props) {
 
   return (
     <div className="palette-back" onClick={onClose}>
-      <div className="palette" role="dialog" aria-label="Search the map" onClick={(ev) => ev.stopPropagation()}>
+      <div className="palette" role="dialog" aria-label={pickMolecule ? pickMolecule.prompt : 'Search the map'} onClick={(ev) => ev.stopPropagation()}>
+        {pickMolecule && <div className="palette-prompt"><Rich s={pickMolecule.prompt} /></div>}
         <div className="palette-in">
           <SearchIcon />
           <input ref={input} value={q} onChange={(ev) => setQ(ev.target.value)} onKeyDown={onKey}
-            placeholder="Enzyme, molecule, plate… (try “pfk”, “beta”, “nad+”)" aria-label="Search"
+            placeholder={pickMolecule ? 'Type a molecule (try “palmitate”, “urea”)' : 'Enzyme, molecule, plate… (try “pfk”, “beta”, “nad+”)'} aria-label="Search"
             role="combobox" aria-expanded="true" aria-controls="palette-list" aria-activedescendant={results[at] ? `pal-${results[at].key}` : undefined} />
           <button className="icon-btn" onClick={onClose} aria-label="Close search"><CloseIcon /></button>
         </div>
         <ul className="palette-list" id="palette-list" role="listbox" ref={list}>
-          {!q && <li className="palette-head" role="presentation">Plates</li>}
+          {!q && !pickMolecule && <li className="palette-head" role="presentation">Plates</li>}
           {results.map((e, i) => {
             const oos = outOfScope(e);
             return (

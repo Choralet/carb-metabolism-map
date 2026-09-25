@@ -38,9 +38,11 @@ interface Props {
   start: View;
   quiz: QuizState;
   onReveal: (key: string) => void;
+  /** A traced route: only its arrows and molecules stay lit, and its arrows are marked like a highlighter pen. */
+  route: { edges: Set<string>; nodes: Set<string> } | null;
 }
 
-export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal }: Props) {
+export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route }: Props) {
   const { nodeMap, routed, regGeoms, plateOf, bounds, seam } = geometryOf(scene);
   /** Widest view (map units): enough to see the whole map at once, whichever parts it has. */
   const MAX_W = Math.max(9000, bounds.both.w + 800);
@@ -240,19 +242,21 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   /** Midterm scope drops the final plates entirely; Final scope keeps the midterm ones as dimmed context. */
   const shown = (x: { exam?: Exam }) => scope !== 'mid' || exOf(x) === 'mid';
   const inScope = (x: { exam?: Exam }) => scope === 'both' || exOf(x) === scope;
-  const filtering = filter.size > 0 || co.size > 0;
+  const filtering = !!route || filter.size > 0 || co.size > 0;
   const clsOk = (e: Edge) => filter.size === 0 || clsOf(e.enz).some((c) => filter.has(c));
   const coOk = (e: Edge) => co.size === 0 || !!e.co?.some((c) => co.has(c));
-  const edgeOn = (e: Edge) => clsOk(e) && coOk(e);
+  const edgeOn = (e: Edge) => (route ? route.edges.has(e.id) : clsOk(e) && coOk(e));
   const activeNodes = useMemo(() => {
     const s = new Set<string>();
     if (!filtering) return s;
+    if (route) return route.nodes;
     edges.forEach((e) => { if (edgeOn(e)) { s.add(e.from); s.add(e.to); if (e.feed) s.add(e.feed); if (e.out) s.add(e.out); } });
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, co, scene]);
+  }, [filter, co, scene, route]);
   const nodeOn = (n: MapNode) => {
     if (!filtering) return true;
+    if (route) return route.nodes.has(n.id);
     if (n.kind === 'card' || n.kind === 'xref') return true;
     if (n.enz && co.size === 0) return clsOf(n.enz).some((c) => filter.has(c));
     return activeNodes.has(n.id);
@@ -337,7 +341,8 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const marker = style === 'link' ? undefined : `url(#${sel ? 'ah-sel' : style === 'plain' ? 'ah-soft' : 'ah'})`;
     const clickable = !!enz && style !== 'link';
     const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
-    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${sel ? ' sel' : ''}`;
+    const onRoute = !!route?.edges.has(e.id);
+    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}`;
 
     // co-substrate curving into the label / co-product curving out of it
     const box = enz && !e.noPill && style !== 'link' ? enzBox(enz.id) : { w: 0, h: 0 };
@@ -361,6 +366,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
 
     return (
       <g key={e.id} className={cls} data-enz={enz?.id}>
+        {onRoute && <path className="route-glow" d={d} />}
         {feed}
         {outLine}
         {harpoon

@@ -9,7 +9,7 @@ import { molPlaces, placesOf, viewAround, type Place } from './locate';
 import { geometryOf } from './map/geometry';
 import { MarkIcon, RegIcon } from './map/glyphs';
 import { Rich } from './rich';
-import { CheckIcon, CloseIcon, LinkIcon } from './shell/icons';
+import { CheckIcon, CloseIcon, LinkIcon, RouteIcon } from './shell/icons';
 import { loadStructures } from './structures';
 
 interface Props {
@@ -22,6 +22,8 @@ interface Props {
   onEdit: (title: string, smiles: string) => void;
   /** Copies a link to this selection (and the current view); resolves true when the clipboard took it. */
   onCopyLink: () => Promise<boolean>;
+  /** Start tracing a route from (or to) this molecule; the other end is picked next. */
+  onRoute: (mol: string, end: 'from' | 'to') => void;
 }
 
 function Structure({ molId, onEdit }: { molId: string; onEdit: Props['onEdit'] }) {
@@ -147,7 +149,7 @@ function Harpoons() {
   );
 }
 
-export default function Drawer({ selection, scene, scope, onClose, onSelect, onGo, onEdit, onCopyLink }: Props) {
+export default function Drawer({ selection, scene, scope, onClose, onSelect, onGo, onEdit, onCopyLink, onRoute }: Props) {
   const [copied, setCopied] = useState(false);
   useEffect(() => setCopied(false), [selection]);
   useEffect(() => {
@@ -220,6 +222,15 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
           </section>
         )}
         <Places places={drawn} onGo={onGo} label="Drawn on" />
+        {mids.length === 1 && (
+          <section>
+            <h3>Trace a route</h3>
+            <div className="chips-row">
+              <button className="enz-link" onClick={() => onRoute(mids[0], 'to')}><RouteIcon /> <span>From here to…</span></button>
+              <button className="enz-link" onClick={() => onRoute(mids[0], 'from')}><RouteIcon /> <span>To here from…</span></button>
+            </div>
+          </section>
+        )}
       </>
     );
   }

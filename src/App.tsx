@@ -8,6 +8,8 @@ import { allKinds, keysFor, quizKeys, type QuizKind, type QuizState } from './qu
 import { CloseIcon } from './shell/icons';
 import { Key, LayersPanel, PlatesPanel } from './shell/Panels';
 import QuizBar from './shell/QuizBar';
+import RouteBar from './shell/RouteBar';
+import { identityName, traceRoute } from './route';
 import Search from './shell/Search';
 import TopBar, { type Panel } from './shell/TopBar';
 import { cofactors } from './data/cofactors';
@@ -151,6 +153,25 @@ export default function App() {
   }, [selection, scene]);
   const copyLink = () => copyText(location.origin + location.pathname + toHash(selection, currentView()));
 
+  // ── route tracer ──────────────────────────────────────────────────
+  const [routeEnds, setRouteEnds] = useState<{ from: string; to: string } | null>(null);
+  const [routePick, setRoutePick] = useState<{ fixed: string; end: 'from' | 'to' } | null>(null);
+  const traced = useMemo(() => (routeEnds ? traceRoute(scene, scope, routeEnds.from, routeEnds.to) : null), [routeEnds, scene, scope]);
+  const routeHi = useMemo(() => (traced ? { edges: traced.edges, nodes: traced.nodes } : null), [traced]);
+  /** Show a new route whole when it fits on screen, else start at its first step (the step list walks the rest). */
+  const showRoute = (from: string, to: string, sc: Scope = scope) => {
+    setRouteEnds({ from, to });
+    const r = traceRoute(scene, sc, from, to);
+    if (!r) return;
+    const { nodeMap, routed } = geometryOf(scene);
+    const pts = [...r.nodes].map((id) => nodeMap[id]);
+    const x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x));
+    const y0 = Math.min(...pts.map((p) => p.y)), y1 = Math.max(...pts.map((p) => p.y));
+    if (x1 - x0 < 2600 && y1 - y0 < 2600) go({ x: x0 - 180, y: y0 - 120, w: x1 - x0 + 360, h: y1 - y0 + 240 });
+    else go(viewAround(routed.get(r.steps[0].edge.id)!.mid, 1000, 640));
+  };
+  const startRoutePick = (mol: string, end: 'from' | 'to') => { closeDrawer(); setRoutePick({ fixed: mol, end }); };
+
   const changeScope = (s: Scope) => {
     setScope(s);
     store.set('atlas-scope', s);
@@ -173,7 +194,7 @@ export default function App() {
     if (next.has(k)) { if (next.size > 1) next.delete(k); } else next.add(k);
     return next;
   });
-  const toggleQuiz = () => { setQuizOn((v) => !v); setRevealed(new Set()); closeDrawer(); };
+  const toggleQuiz = () => { setQuizOn((v) => !v); setRevealed(new Set()); closeDrawer(); setRouteEnds(null); };
 
   // ── highlight counts (within scope) ───────────────────────────────
   const counts = useMemo(() => {
@@ -236,9 +257,14 @@ export default function App() {
 
       <main>
         <Diagram scene={scene} scope={scope} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={select}
-          focus={focus} start={start} quiz={quiz} onReveal={reveal} />
+          focus={focus} start={start} quiz={quiz} onReveal={reveal} route={routeHi} />
 
-        {highlights > 0 && (
+        {routeEnds && (
+          <RouteBar scene={scene} scope={scope} from={routeEnds.from} to={routeEnds.to} route={traced} onGo={go}
+            onSwap={() => showRoute(routeEnds.to, routeEnds.from)} onClear={() => setRouteEnds(null)}
+            onWiden={() => { setScope('both'); showRoute(routeEnds.from, routeEnds.to, 'both'); }} />
+        )}
+        {!routeEnds && highlights > 0 && (
           <div className="hl-bar" role="status">
             <span className="hl-label">Highlighting</span>
             {[...filter].map((c) => (
@@ -265,7 +291,7 @@ export default function App() {
 
         {selection && (
           <Drawer selection={selection} scene={scene} scope={scope} onClose={closeDrawer} onSelect={select} onGo={go} onCopyLink={copyLink}
-            onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} />
+            onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} onRoute={startRoutePick} />
         )}
 
         {!chrome && (
@@ -274,6 +300,13 @@ export default function App() {
       </main>
 
       {searching && <Search scene={scene} scope={scope} onClose={() => setSearching(false)} onPick={pick} />}
+      {routePick && (
+        <Search scene={scene} scope={scope} onClose={() => setRoutePick(null)} onPick={pick}
+          pickMolecule={{
+            prompt: routePick.end === 'to' ? `Route from ${identityName(routePick.fixed, scene)} to…` : `Route to ${identityName(routePick.fixed, scene)}, starting from…`,
+            onPick: (m) => { setRoutePick(null); if (routePick.end === 'to') showRoute(routePick.fixed, m); else showRoute(m, routePick.fixed); },
+          }} />
+      )}
 
       {/* once opened, the editor stays mounted (hidden) — see KetcherModal */}
       {everEdited && (

@@ -8,6 +8,7 @@ import { molecules } from '../src/data/molecules.ts';
 import { cards } from '../src/data/cards.ts';
 import { regBlocks } from '../src/data/regulation.ts';
 import { cofactors } from '../src/data/cofactors.ts';
+import { POOL } from '../src/data/pools.ts';
 
 const errors = [];
 const warnings = [];
@@ -107,6 +108,14 @@ for (const m of molecules) if (!usedMol.has(m.id)) warn(`molecule ${m.id} is nev
 const usedCards = new Set(desktopScene.nodes.map((n) => n.card).filter(Boolean));
 for (const c of cards) if (!usedCards.has(c.id)) warn(`card ${c.id} is not on the map`);
 void deskNodes;
+
+// route-tracer pools name drawn molecule nodes (a renamed node would silently merge compartments again)
+const deskIds = new Set(desktopScene.nodes.map((x) => x.id));
+for (const id of Object.keys(POOL)) {
+  const node = desktopScene.nodes.find((x) => x.id === id);
+  if (!deskIds.has(id)) err(`pools.ts: unknown node "${id}"`);
+  else if (!node.mol && !node.mols) err(`pools.ts: node "${id}" is not a molecule`);
+}
 
 // pre-rendered structure drawings must be up to date
 const structures = JSON.parse(readFileSync(new URL('../src/data/structures.json', import.meta.url), 'utf8'));
