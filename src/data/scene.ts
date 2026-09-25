@@ -1,4 +1,5 @@
 import { desktopScene as midDesktop, phoneScene as midPhone } from './layout.ts';
+import { lipidScene } from './part3/layout.ts';
 import type { Exam, Scene } from './types.ts';
 
 /**
@@ -6,7 +7,7 @@ import type { Exam, Scene } from './types.ts';
  * (Parts III–IV), which sit in their own wing to the right. Everything from a final part is tagged `exam: 'final'`
  * here, so the scope switch, quiz and search can tell the two apart without every record repeating it.
  */
-const finalParts: Scene[] = [];
+const finalParts: Scene[] = [lipidScene];
 
 function tagged(s: Scene, exam: Exam): Scene {
   return {

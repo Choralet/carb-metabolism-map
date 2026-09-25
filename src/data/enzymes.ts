@@ -1,4 +1,5 @@
 import type { ClassInfo, Enzyme } from './types';
+import { lipidEnzymes } from './part3/enzymes.ts';
 
 /** Colours live in styles.css (--k-<id>) so each theme can tune them; every type also has its own marker shape. */
 export const classes: ClassInfo[] = [
@@ -16,6 +17,7 @@ export const classById = Object.fromEntries(classes.map((c) => [c.id, c])) as Re
 
 const P1 = 'Part I · slide ';
 const P2 = 'Part II · slide ';
+const P3 = 'Part III · slide ';
 
 export const enzymes: Enzyme[] = [
   // ───────── Glycolysis ─────────
@@ -38,7 +40,8 @@ export const enzymes: Enzyme[] = [
       'This is the "cleavage step" that ends the preparatory phase.'], slide: P1 + '11' },
   { id: 'tpi', name: 'Triose phosphate isomerase', short: 'TPI', cls: ['isomerase'], ec: '5.3.1.1', rev: true, subs: ['dhap'], prods: ['g3p'],
     text: ['Rapidly and reversibly converts DHAP to glyceraldehyde 3-phosphate.',
-      'Afterwards, carbons C-1, C-2, C-3 of the starting glucose are chemically indistinguishable from C-6, C-5, C-4: both halves of glucose have yielded G3P. This matters when interpreting experiments with a single radiolabeled carbon.'], slide: P1 + '12' },
+      'Afterwards, carbons C-1, C-2, C-3 of the starting glucose are chemically indistinguishable from C-6, C-5, C-4: both halves of glucose have yielded G3P. This matters when interpreting experiments with a single radiolabeled carbon.',
+      'Part III: the glycerol from fat enters glycolysis here. Glycerol 3-phosphate is oxidized to DHAP, and TPI converts the DHAP to glyceraldehyde 3-phosphate. (Slide 8’s bullet says TPI converts glycerol 3-phosphate itself; its figure shows it acting on DHAP, which is what is drawn.)'], slide: P1 + '12 · ' + P3 + '8' },
   { id: 'gapdh', name: 'Glyceraldehyde 3-phosphate dehydrogenase', full: 'Glyceraldehyde 3-phosphate dehydrogenase', short: 'GAPDH', cls: ['dehydrogenase'], ec: '1.2.1.12', rev: true, subs: ['g3p'], prods: ['bpg13'],
     cofactors: 'NAD⁺ + Pi → NADH + H⁺',
     text: ['Oxidizes G3P and phosphorylates it with inorganic phosphate (not ATP) to form 1,3-bisphosphoglycerate.',
@@ -81,11 +84,14 @@ export const enzymes: Enzyme[] = [
   { id: 'pc', name: 'Pyruvate carboxylase', short: 'Pyruvate carboxylase', cls: ['ligase'], ec: '6.4.1.1', rev: false, subs: ['pyr'], prods: ['oaa'],
     cofactors: 'ATP + HCO₃⁻ → ADP + Pi',
     text: ['Bypass 1 (part 1): pyruvate → oxaloacetate. Together with PEP carboxykinase this bypasses pyruvate kinase.',
-      'Two routes exist. The first predominates when pyruvate or alanine is the precursor; the second when lactate is the precursor. Which is used depends on precursor availability and the cytosolic need for NADH.'], slide: P1 + '28–29' },
+      'Two routes exist. The first predominates when pyruvate or alanine is the precursor; the second when lactate is the precursor. Which is used depends on precursor availability and the cytosolic need for NADH.',
+      'Part III, citrate shuttle (step 10): pyruvate returning to the matrix is carboxylated back to oxaloacetate. With citrate lyase, this is one of the 2 ATP the shuttle spends per acetyl-CoA exported.',
+      'Part III, triacylglycerol synthesis: the first step of the abbreviated gluconeogenesis (pyruvate → DHAP) that supplies glycerol 3-phosphate.'], slide: P1 + '28–29 · ' + P3 + '26, 41' },
   { id: 'pepck', name: 'PEP carboxykinase', full: 'Phosphoenolpyruvate carboxykinase', short: 'PEPCK', cls: ['lyase'], ec: '4.1.1.32', rev: false, subs: ['oaa'], prods: ['pep'],
     cofactors: 'GTP → GDP + CO₂',
     text: ['Bypass 1 (part 2): oxaloacetate → phosphoenolpyruvate.',
-      'Named "carboxykinase", but EC classifies it as a lyase (decarboxylation), so it appears under Lyase in the filter.'], slide: P1 + '28–29' },
+      'Named "carboxykinase", but EC classifies it as a lyase (decarboxylation), so it appears under Lyase in the filter.',
+      'Part III: also the second step of the abbreviated gluconeogenesis (pyruvate → oxaloacetate → PEP → … → DHAP) that makes glycerol 3-phosphate for triacylglycerol synthesis.'], slide: P1 + '28–29 · ' + P3 + '41' },
   { id: 'fbp', name: 'Fructose 1,6-bisphosphatase-1 (FBPase-1)', full: 'Fructose 1,6-bisphosphatase-1', short: 'FBPase-1', cls: ['hydrolase'], ec: '3.1.3.11', rev: false, subs: ['f16bp'], prods: ['f6p'],
     cofactors: 'H₂O → Pi (Mg²⁺-dependent)',
     text: ['Bypass 2: irreversible hydrolysis of the C-1 phosphate of fructose 1,6-bisphosphate. It bypasses PFK-1, whose reaction is highly exergonic and irreversible in intact cells.'], slide: P1 + '30' },
@@ -144,8 +150,9 @@ export const enzymes: Enzyme[] = [
   // ───────── TCA cycle ─────────
   { id: 'cs', name: 'Citrate synthase', short: 'Citrate synthase', cls: ['transferase'], ec: '2.3.3.1', rev: false, subs: ['oaa', 'accoa'], prods: ['cit'],
     text: ['Step 1. Condensation of acetyl-CoA (2C) with oxaloacetate (4C) to form citrate (6C).',
-      'The large negative standard free-energy change is essential for the cycle, because [OAA] is very low. Classified as an acyltransferase (condensing enzyme) by EC.'],
-    reg: 'Second control point of the cycle (entry of acetyl-CoA). Limited by availability of OAA and acetyl-CoA; feedback-inhibited by citrate, succinyl-CoA and ATP.', slide: P2 + '8, 14–15' },
+      'The large negative standard free-energy change is essential for the cycle, because [OAA] is very low. Classified as an acyltransferase (condensing enzyme) by EC.',
+      'Part III, citrate shuttle (step 1): acetyl-CoA cannot cross the inner membrane, so for fatty acid synthesis it leaves the matrix as citrate, made by this same reaction.'],
+    reg: 'Second control point of the cycle (entry of acetyl-CoA). Limited by availability of OAA and acetyl-CoA; feedback-inhibited by citrate, succinyl-CoA and ATP.', slide: P2 + '8, 14–15 · ' + P3 + '25' },
   { id: 'aco', name: 'Aconitase', short: 'Aconitase', cls: ['isomerase'], ec: '4.2.1.3', rev: true, subs: ['cit'], prods: ['icit'],
     text: ['Step 2. Reversible transformation of citrate to isocitrate through the intermediate cis-aconitate.',
       'In the cell the reaction is pulled forward because isocitrate is consumed rapidly by the next step. Shown as an isomerization; EC formally lists it as a hydro-lyase.'], slide: P2 + '8' },
@@ -173,7 +180,8 @@ export const enzymes: Enzyme[] = [
     cofactors: 'NAD⁺ → NADH',
     text: ['Step 8. Oxidizes L-malate to oxaloacetate.',
       'In intact cells OAA is continually removed by the highly exergonic citrate synthase reaction, so [OAA] stays very low and pulls this reaction forward.',
-      'The same enzyme does the NADH-handling steps of the malate-aspartate shuttle: in the cytosol side it passes 2 reducing equivalents from NADH to oxaloacetate, making malate (shuttle step 1); in the matrix it passes them from malate to NAD⁺ (step 3).'], slide: P2 + '11, 19' },
+      'The same enzyme does the NADH-handling steps of the malate-aspartate shuttle: in the cytosol side it passes 2 reducing equivalents from NADH to oxaloacetate, making malate (shuttle step 1); in the matrix it passes them from malate to NAD⁺ (step 3).',
+      'Part III, citrate shuttle: in the cytosol it reduces the oxaloacetate left by citrate lyase to malate (step 5), because there is no oxaloacetate transporter; malate that returns to the matrix is oxidized back to oxaloacetate (step 7).'], slide: P2 + '11, 19 · ' + P3 + '25–26' },
 
   // ───────── NADH shuttles (Part II slides 18–20) ─────────
   { id: 'aat', name: 'Aspartate aminotransferase', short: 'AST', cls: ['transferase'], ec: '2.6.1.1', rev: null, subs: ['oaa', 'glu'], prods: ['asp', 'akg'],
@@ -182,14 +190,16 @@ export const enzymes: Enzyme[] = [
       'Cytosolic side (step 6): the same kind of reaction runs the other way. Aspartate gives its amino group to α-ketoglutarate, so oxaloacetate is regenerated in the cytosol and glutamate is formed.'], slide: P2 + '19' },
   { id: 'mkt', name: 'Malate-α-ketoglutarate transporter', short: 'Malate–α-KG transporter', cls: ['other'], rev: null,
     text: ['Inner-membrane transporter (step 2) that carries malate across into the matrix.',
-      'The slide names it a malate-α-ketoglutarate transporter; α-ketoglutarate is drawn returning to the cytosolic side (as the by-product of matrix transamination), so that leg is shown on this transporter. The slide does not label that leg itself.'], slide: P2 + '19' },
+      'The slide names it a malate-α-ketoglutarate transporter; α-ketoglutarate is drawn returning to the cytosolic side (as the by-product of matrix transamination), so that leg is shown on this transporter. The slide does not label that leg itself.',
+      'Part III, citrate shuttle (step 6): some of the cytosolic malate returns to the matrix through this transporter; most is instead converted to pyruvate by malic enzyme, making NADPH.'], slide: P2 + '19 · ' + P3 + '26' },
   { id: 'gat', name: 'Glutamate-aspartate transporter', short: 'Glutamate–Asp transporter', cls: ['other'], rev: null,
     text: ['Inner-membrane transporter (step 5) through which aspartate leaves the matrix to reach the cytosol.',
       'Glutamate, needed for the matrix transamination, is drawn entering by the same route. The slide does not label the glutamate leg itself; it is assigned here from the transporter\'s name.'], slide: P2 + '19' },
-  { id: 'gpdhc', name: 'Cytosolic glycerol 3-phosphate dehydrogenase', short: 'cGPDH', cls: ['dehydrogenase'], ec: '1.1.1.8', rev: null, subs: ['dhap'], prods: ['g3pgly'],
+  { id: 'gpdhc', name: 'Cytosolic glycerol 3-phosphate dehydrogenase', short: 'cGPDH', cls: ['dehydrogenase'], ec: '1.1.1.8', rev: true, subs: ['dhap'], prods: ['g3pgly'],
     cofactors: 'NADH + H⁺ → NAD⁺',
     text: ['In the cytosol, dihydroxyacetone phosphate accepts 2 reducing equivalents from NADH (made by glycolysis) and becomes glycerol 3-phosphate.',
-      'This regenerates the cytosolic NAD⁺ that GAPDH needs.'], slide: P2 + '20' },
+      'This regenerates the cytosolic NAD⁺ that GAPDH needs.',
+      'Part III: the reaction runs both ways. Glycerol released from fat is phosphorylated and then oxidized here to DHAP (NAD⁺ → NADH) on its way into glycolysis (slide 8). In liver and kidney, the reverse reduces DHAP to glycerol 3-phosphate, the backbone for triacylglycerol synthesis (slides 41–42).'], slide: P2 + '20 · ' + P3 + '8, 41–42' },
   { id: 'gpdhm', name: 'Mitochondrial glycerol 3-phosphate dehydrogenase', short: 'mGPDH', cls: ['dehydrogenase'], ec: '1.1.5.3', rev: null, subs: ['g3pgly'], prods: ['dhap'],
     cofactors: 'FAD → FADH₂ → passes electrons to ubiquinone (Q → QH₂)',
     text: ['An isozyme of glycerol 3-phosphate dehydrogenase bound to the outer face of the inner mitochondrial membrane (intermembrane-space side).',
@@ -210,6 +220,7 @@ export const enzymes: Enzyme[] = [
     cofactors: 'ADP + Pi → ATP',
     text: ['Protons can re-enter the matrix only through the proton channel F₀. The proton-motive force driving them back provides the energy for ATP synthesis by the F₁ complex.',
       'This is the chemiosmotic model (Peter Mitchell). About 200 kJ per mole of electron pairs is conserved, more than the ~50 kJ needed per mole of ATP.'], slide: P2 + '24' },
+  ...lipidEnzymes,
 ];
 
 export const enzById = Object.fromEntries(enzymes.map((e) => [e.id, e])) as Record<string, Enzyme>;

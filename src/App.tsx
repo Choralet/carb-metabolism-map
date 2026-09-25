@@ -4,7 +4,6 @@ import Drawer from './Drawer';
 import { classById, enzById } from './data/enzymes';
 import { desktopScene, phoneScene } from './data/scene';
 import type { CoKey, EnzClass, Exam, Scene, Scope } from './data/types';
-import { regionView } from './locate';
 import { allKinds, keysFor, quizKeys, type QuizKind, type QuizState } from './quiz';
 import { CloseIcon } from './shell/icons';
 import { Key, LayersPanel, PlatesPanel } from './shell/Panels';
@@ -33,7 +32,8 @@ const inScope = (x: { exam?: Exam }, s: Scope) => s === 'both' || (x.exam ?? 'mi
 function startView(scene: Scene, scope: Scope, phone: boolean): View {
   if (scope === 'final') {
     const first = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV').sort((a, b) => a.plate - b.plate)[0];
-    if (first) return phone ? { x: first.x, y: first.y - 30, w: Math.min(first.w, 620), h: 900 } : regionView(first);
+    // the top of the first plate at reading size (a whole plate is too tall to read at once)
+    if (first) return phone ? { x: first.x, y: first.y - 24, w: Math.min(first.w, 620), h: 1160 } : { x: first.x - 40, y: first.y - 20, w: 1800, h: 1100 };
   }
   // tall on phones, so the fit keeps the top edge near the top of the plate instead of centring on empty desk
   return phone ? { x: 850, y: -24, w: 600, h: 1160 } : { x: 560, y: 0, w: 1020, h: 1120 };

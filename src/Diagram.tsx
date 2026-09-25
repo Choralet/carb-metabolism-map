@@ -258,6 +258,19 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
 
   const selEnz = selection?.kind === 'enz' ? selection.id : null;
   const paper = (x: { exam?: Exam }) => (exOf(x) === 'final' ? 'fin' : 'mid');
+  /** Reaction notes are haloed in paper colour, which is not enough over a membrane's dots: there they get a knockout. */
+  const tagText = (t: string, x: number, y: number, anchor: Anchor, extra = '') => {
+    const w = measure(t, TY.tag, 400, 'sans');
+    const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+    const k = { x: x0 - 3, y: y - TY.tag + 1, w: w + 6, h: TY.tag + 4 };
+    const onBand = bands.some((b) => k.x < b.x + b.w && k.x + k.w > b.x && k.y < b.y + b.h && k.y + k.h > b.y);
+    return (
+      <>
+        {onBand && <rect className={`tag-ko${extra}`} x={k.x} y={k.y} width={k.w} height={k.h} rx={2} />}
+        <text className={`tag${extra}`} x={x} y={y} textAnchor={anchor}><Tspans s={t} size={TY.tag} /></text>
+      </>
+    );
+  };
   const visEdges = edges.filter(shown);
   const visNodes = nodes.filter(shown);
   const visRegions = regions.filter((r) => shown({ exam: regionExam(r) }));
@@ -373,7 +386,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
     const cls0 = enz ? enz.cls[0] : 'other';
     const hl = on && filter.size > 0 && clsOk(e);
-    const cls = `elabel-g${on ? '' : ' off'}${inScope(e) ? '' : ' out'}`;
+    const cls = `elabel-g ${paper(e)}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}`;
 
     let tag: React.JSX.Element | null = null;
     if (e.tags) {
@@ -388,7 +401,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
         else ty = P.y - onLine.h / 2 - 8;
         tag = tagHidden
           ? <QMark key="q" x={anchor === 'start' ? tx + 17 : anchor === 'end' ? tx - 17 : tx} y={ty - 4} k={tagKey(e)} activate={activate} onKey={onKey} />
-          : <text className="tag lod-near" x={tx} y={ty} textAnchor={anchor}><Tspans s={parts.plain} size={TY.tag} /></text>;
+          : tagText(parts.plain, tx, ty, anchor, ' lod-near');
       } else {
         const a = arcGeom(P, onLine, side, r.dir, { inn: !!parts.inn, out: !!parts.out });
         tag = (
@@ -398,8 +411,8 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
               ? <QMark x={a.qAnchor === 'start' ? a.q.x + 17 : a.qAnchor === 'end' ? a.q.x - 17 : a.q.x} y={a.q.y - 4} k={tagKey(e)} activate={activate} onKey={onKey} />
               : (
                 <>
-                  {parts.inn && <text className="tag" x={a.inAt.x} y={a.inAt.y} textAnchor={a.inAnchor}><Tspans s={parts.inn} size={TY.tag} /></text>}
-                  {parts.out && <text className="tag" x={a.outAt.x} y={a.outAt.y} textAnchor={a.outAnchor}><Tspans s={parts.out} size={TY.tag} /></text>}
+                  {parts.inn && tagText(parts.inn, a.inAt.x, a.inAt.y, a.inAnchor)}
+                  {parts.out && tagText(parts.out, a.outAt.x, a.outAt.y, a.outAnchor)}
                 </>
               )}
           </g>

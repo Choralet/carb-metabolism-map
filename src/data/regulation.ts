@@ -1,3 +1,5 @@
+import { lipidReg } from './part3/regulation.ts';
+
 /**
  * Allosteric regulation and the inhibitor table, taken from the lecture slides.
  * Blocks are anchored to an enzyme pill (`edge`) or a map node, and offset by dx/dy.
@@ -136,6 +138,9 @@ export const regBlocks: RegBlock[] = [
       'Thermogenin, in brown adipose tissue, forms proton-conducting pores in the inner mitochondrial membrane.'],
     slide: P2 + '25',
   },
+
+  // ───────── Part III: fatty acid synthesis vs breakdown ─────────
+  ...lipidReg,
 ];
 
 export const regById = Object.fromEntries(regBlocks.map((r) => [r.id, r])) as Record<string, RegBlock>;

@@ -230,6 +230,8 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 .arc-line { fill: none; stroke: var(--ink-2); stroke-width: 1.25; }
 .tag { font: 400 12px var(--f-sans); fill: var(--ink-2); paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; }
 .fin .tag, .elabel-g.fin .tag { stroke: var(--paper-fin); }
+.tag-ko { fill: var(--paper); pointer-events: none; }
+.fin .tag-ko { fill: var(--paper-fin); }
 
 /* nodes */
 .node .nbox { fill: transparent; stroke: none; transition: fill .12s; }

@@ -69,10 +69,13 @@ function Places({ places, onGo, label }: { places: Place[]; onGo: Props['onGo'];
   );
 }
 
-function Kicker({ exam, plate, what }: { exam?: Exam; plate?: { plate: number; title: string }; what: string }) {
+/** Which exams a selection is drawn for: shared steps (citrate synthase, acetyl-CoA…) carry both badges. */
+const examsOf = (ps: Place[]): Exam[] => (['mid', 'final'] as const).filter((x) => ps.some((p) => p.exam === x));
+
+function Kicker({ exams, plate, what }: { exams: Exam[]; plate?: { plate: number; title: string }; what: string }) {
   return (
     <div className="kicker">
-      {exam && <b className={`part-badge ${exam}`}>{exam === 'final' ? 'FINAL' : 'MIDTERM'}</b>}
+      {exams.map((x) => <b key={x} className={`part-badge ${x}`}>{x === 'final' ? 'FINAL' : 'MIDTERM'}</b>)}
       <span>{what}{plate ? <> · PLATE {plate.plate} · <Rich s={plate.title.toUpperCase()} /></> : null}</span>
     </div>
   );
@@ -157,7 +160,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
     const r = regById[selection.id];
     body = (
       <>
-        <Kicker exam={here?.exam} plate={here?.plate} what={r.kind === 'agent' ? 'INHIBITORS' : 'REGULATION'} />
+        <Kicker exams={examsOf(places)} plate={here?.plate} what={r.kind === 'agent' ? 'INHIBITORS' : 'REGULATION'} />
         <h2><Rich s={r.title} /></h2>
         <RegFacts act={r.act} inh={r.inh} />
         {r.detail.map((t, i) => <p key={i}><Rich s={t} /></p>)}
@@ -167,7 +170,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
   } else if (selection.kind === 'enz') {
     body = (
       <>
-        <Kicker exam={here?.exam} plate={here?.plate} what="ENZYME" />
+        <Kicker exams={examsOf(places)} plate={here?.plate} what="ENZYME" />
         <EnzymeView id={selection.id} places={places} onEdit={onEdit} onGo={onGo} />
       </>
     );
@@ -175,7 +178,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
     const c = cardById[selection.id];
     body = (
       <>
-        <Kicker exam={here?.exam} plate={here?.plate} what="OVERVIEW" />
+        <Kicker exams={examsOf(places)} plate={here?.plate} what="OVERVIEW" />
         <h2><Rich s={c.title} /></h2>
         {c.sub && <p className="sub"><Rich s={c.sub} /></p>}
         <ul>{c.bullets.map((b, i) => <li key={i}><Rich s={b} /></li>)}</ul>
@@ -196,7 +199,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
     const drawn = mids.length === 1 ? molPlaces(mids[0], scene) : [];
     body = (
       <>
-        <Kicker exam={here?.exam} plate={here?.plate} what="MOLECULE" />
+        <Kicker exams={examsOf(drawn.length ? drawn : places)} plate={here?.plate} what="MOLECULE" />
         <h2><Rich s={mids.length === 1 ? molById[mids[0]].name : n.label ?? ''} /></h2>
         <div className={`rxn-side wrap${mids.length > 1 ? ' multi' : ''}`}>{mids.map((m) => <Structure key={m} molId={m} onEdit={onEdit} />)}</div>
         {mids.map((m) => molById[m].note && <p key={m}>{mids.length > 1 && <strong><Rich s={molById[m].name} />: </strong>}<Rich s={molById[m].note!} /></p>)}

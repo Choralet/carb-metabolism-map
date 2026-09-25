@@ -1,4 +1,5 @@
 import type { Molecule } from './types';
+import { lipidMolecules } from './part3/molecules.ts';
 
 const ACOA = 'CC(C)(COP(=O)(O)OP(=O)(O)OC[C@@H]1[C@H]([C@H]([C@@H](O1)N2C=NC3=C(N=CN=C32)N)O)OP(=O)(O)O)[C@H](C(=O)NCCC(=O)NCCS';
 
@@ -39,6 +40,7 @@ export const molecules: Molecule[] = [
   { id: 'glu', name: 'Glutamate', smiles: 'C(CC(=O)O)[C@@H](C(=O)O)N', note: 'Amino-group donor/acceptor in the malate–aspartate shuttle: made from α-ketoglutarate by transamination.' },
   { id: 'asp', name: 'Aspartate', smiles: 'C([C@@H](C(=O)O)N)C(=O)O' },
   { id: 'g3pgly', name: 'Glycerol 3-phosphate', smiles: 'C([C@@H](COP(=O)(O)O)O)O' },
+  ...lipidMolecules,
 ];
 
 export const molById = Object.fromEntries(molecules.map((m) => [m.id, m])) as Record<string, Molecule>;

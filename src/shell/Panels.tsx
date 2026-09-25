@@ -100,7 +100,7 @@ export function LayersPanel({ counts, coCounts, filter, onToggle, co, onToggleCo
         </div>
         <h3>Highlight cofactor</h3>
         <div className="chip-row">
-          {cofactors.map((c) => (
+          {cofactors.filter((c) => (coCounts[c.id] ?? 0) > 0 || co.has(c.id)).map((c) => (
             <button key={c.id} className={`fchip co${co.has(c.id) ? ' on' : ''}`} onClick={() => onToggleCo(c.id)} title={c.hint} aria-pressed={co.has(c.id)}>
               <span><Rich s={c.label} /></span> <b>{coCounts[c.id] ?? 0}</b>
             </button>

@@ -26,12 +26,16 @@ export function runs(s: string): Run[] {
   const hit = rcache.get(s);
   if (hit) return hit;
   const out: Run[] = [];
-  for (const ch of s) {
-    const k: RunKind = ch in SUB ? 'sub' : ch in SUP ? 'sup' : 'n';
-    const t = k === 'sub' ? SUB[ch] : k === 'sup' ? SUP[ch] : ch;
+  const chars = [...s];
+  const kindOf = (ch: string | undefined): RunKind => (ch === undefined ? 'n' : ch in SUB ? 'sub' : ch in SUP ? 'sup' : 'n');
+  chars.forEach((ch, i) => {
+    let k = kindOf(ch);
+    // a comma between script digits (Δ⁹,¹²) belongs to the script run, so it is raised with them
+    if (ch === ',' && i > 0 && kindOf(chars[i - 1]) !== 'n' && kindOf(chars[i - 1]) === kindOf(chars[i + 1])) k = kindOf(chars[i - 1]);
+    const t = k !== 'n' && ch !== ',' ? (k === 'sub' ? SUB[ch] : SUP[ch]) : ch;
     const last = out[out.length - 1];
     if (last && last.k === k) last.t += t; else out.push({ t, k });
-  }
+  });
   rcache.set(s, out);
   return out;
 }
@@ -83,6 +87,11 @@ export function wrap(s: string, size: number, weight: number, fam: Fam, max: num
     if (cur && measure(next, size, weight, fam, italic) > max) { lines.push(cur); cur = word; } else cur = next;
   }
   if (cur) lines.push(cur);
+  // never leave a numeral or a short word alone on the last line ("Carnitine acyltransferase / I")
+  if (lines.length > 1 && [...lines[lines.length - 1]].length <= 3) {
+    const last = lines.pop()!;
+    lines[lines.length - 1] += ` ${last}`;
+  }
   wcache.set(key, lines);
   return lines;
 }
