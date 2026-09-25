@@ -9,6 +9,7 @@ import { cards } from '../src/data/cards.ts';
 import { regBlocks } from '../src/data/regulation.ts';
 import { cofactors } from '../src/data/cofactors.ts';
 import { POOL } from '../src/data/pools.ts';
+import { onPlate } from '../src/data/plate.ts';
 
 const errors = [];
 const warnings = [];
@@ -52,7 +53,7 @@ function checkScene(scene, name) {
     if (plates.has(r.plate)) err(`${name}: plate number ${r.plate} used by ${plates.get(r.plate)} and ${r.id}`);
     plates.set(r.plate, r.id);
   }
-  const inside = (p) => scene.regions.find((r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+  const inside = (p) => scene.regions.find((r) => onPlate(r, p.x, p.y));
   for (const n of scene.nodes) {
     const at = `${name} node ${n.id}`;
     if (n.mol && !mol.has(n.mol)) err(`${at}: unknown molecule "${n.mol}"`);
@@ -77,24 +78,29 @@ function checkScene(scene, name) {
     for (const c of e.co ?? []) if (!coIds.has(c)) err(`${at}: unknown cofactor "${c}"`);
     if (e.tags && e.tags.includes('→') && e.tags.replace('→', '').trim() === '') err(`${at}: empty reaction label`);
     if (e.from === e.to) err(`${at}: starts and ends at the same node`);
+    // a dotted link says "this is the same molecule", so both ends must draw the same one
+    if (e.style === 'link' && nodes.has(e.from) && nodes.has(e.to)) {
+      const a = nodes.get(e.from), b = nodes.get(e.to);
+      if (a.mol && b.mol && a.mol !== b.mol) err(`${at}: dotted link joins different molecules (${a.mol}, ${b.mol})`);
+    }
   }
   for (const j of scene.jumps) if (j.plate && !regions.has(j.plate)) err(`${name} view ${j.id}: unknown plate "${j.plate}"`);
   for (const r of regBlocks) {
     const ok = 'edge' in r.anchor ? scene.edges.some((e) => e.id === r.anchor.edge) : nodes.has(r.anchor.node);
     if (!ok) err(`${name}: regulation ${r.id} is anchored to something not on the map`);
   }
-  // final plates live in their own wing to the right of the midterm map
-  const mid = scene.regions.filter((r) => r.part === 'I' || r.part === 'II');
-  const fin = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV');
-  if (mid.length && fin.length) {
-    const edge = Math.max(...mid.map((r) => r.x + r.w));
-    for (const r of fin) if (r.x < edge + 60) err(`${name}: final plate ${r.id} starts at x=${r.x}, inside the midterm area (ends at ${edge})`);
+  // plates tile the map: their rectangles must not overlap
+  const rects = scene.regions.flatMap((r) => [r, ...(r.more ?? [])].map((q) => ({ id: r.id, ...q })));
+  for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+    const a = rects[i], b = rects[j];
+    if (a.id === b.id) continue;
+    if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) err(`${name}: plates ${a.id} and ${b.id} overlap`);
   }
   return nodes;
 }
 
 const deskNodes = checkScene(desktopScene, 'desktop');
-checkScene(phoneScene, 'phone');
+if (phoneScene !== desktopScene) checkScene(phoneScene, 'phone');
 
 // everything defined should be drawn somewhere
 const usedEnz = new Set([...desktopScene.edges.map((e) => e.enz), ...desktopScene.nodes.map((n) => n.enz)].filter(Boolean));

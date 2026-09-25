@@ -1,38 +1,37 @@
-import { desktopScene as midDesktop, phoneScene as midPhone } from './layout.ts';
-import { lipidScene } from './part3/layout.ts';
-import { aminoScene } from './part4/layout.ts';
-import type { Exam, Scene } from './types.ts';
+import { atlas } from './atlas.ts';
+import type { Exam, ExamTag, Scene } from './types.ts';
 
 /**
- * The map is assembled from the midterm scene (Parts I–II, hand-placed in layout.ts) and the final-exam plates
- * (Parts III–IV), which sit in their own wing to the right. Everything from a final part is tagged `exam: 'final'`
- * here, so the scope switch, quiz and search can tell the two apart without every record repeating it.
+ * The map is one scene (atlas.ts). Final-exam plates are tagged `exam: 'final'` there and a few shared steps
+ * `'both'`; untagged means midterm. Here each molecule also learns which exams use it: a molecule that a midterm
+ * and a final pathway both touch (acetyl-CoA, DHAP, α-ketoglutarate…) is 'both', so the exam switch keeps it lit
+ * whichever exam is highlighted.
  */
-const finalParts: Scene[] = [lipidScene, aminoScene];
-
-function tagged(s: Scene, exam: Exam): Scene {
+function withNodeExams(s: Scene): Scene {
+  const uses = new Map<string, Set<Exam>>();
+  const add = (id: string | undefined, tag: ExamTag | undefined) => {
+    if (!id) return;
+    if (!uses.has(id)) uses.set(id, new Set());
+    const set = uses.get(id)!;
+    if (tag === 'both') { set.add('mid'); set.add('final'); } else set.add(tag ?? 'mid');
+  };
+  for (const e of s.edges) {
+    if (e.style === 'link') continue;
+    for (const id of [e.from, e.to, e.feed, e.out]) add(id, e.exam);
+  }
   return {
     ...s,
-    nodes: s.nodes.map((n) => ({ ...n, exam })),
-    edges: s.edges.map((e) => ({ ...e, exam })),
+    nodes: s.nodes.map((n) => {
+      if (n.kind === 'card' || n.kind === 'xref') return n;
+      const set = new Set(uses.get(n.id) ?? []);
+      set.add(n.exam === 'both' ? 'mid' : n.exam ?? 'mid');
+      if (n.exam === 'both') set.add('final');
+      const exam: ExamTag = set.size > 1 ? 'both' : [...set][0];
+      return exam === (n.exam ?? 'mid') ? n : { ...n, exam };
+    }),
   };
 }
 
-function merge(base: Scene, parts: Scene[]): Scene {
-  const all = [base, ...parts.map((p) => tagged(p, 'final'))];
-  return {
-    canvas: { w: Math.max(...all.map((s) => s.canvas.w)), h: Math.max(...all.map((s) => s.canvas.h)) },
-    nodes: all.flatMap((s) => s.nodes),
-    edges: all.flatMap((s) => s.edges),
-    regions: all.flatMap((s) => s.regions),
-    bands: all.flatMap((s) => s.bands),
-    captions: all.flatMap((s) => s.captions),
-    labels: all.flatMap((s) => s.labels),
-    jumps: all.flatMap((s) => s.jumps),
-    decor: all.flatMap((s) => s.decor),
-  };
-}
-
-export const desktopScene = merge(midDesktop, finalParts);
-/** Final plates are laid out narrow enough to read on a phone, so they need no separate phone layout. */
-export const phoneScene = merge(midPhone, finalParts);
+export const desktopScene = withNodeExams(atlas);
+/** One layout serves phones too: plates are at most ~1300 units wide, and jumping to a plate frames it at reading size. */
+export const phoneScene = desktopScene;

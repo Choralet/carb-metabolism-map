@@ -3,7 +3,7 @@ import { cardById } from './data/cards';
 import { classById, enzById, enzymes } from './data/enzymes';
 import { otherAgents, regById, regForEnzyme } from './data/regulation';
 import { molById } from './data/molecules';
-import type { Exam, Scene, Scope, StudyTable } from './data/types';
+import { inExam, type Exam, type Scene, type Scope, type StudyTable } from './data/types';
 import type { Selection, View } from './Diagram';
 import { molPlaces, placesOf, viewAround, type Place } from './locate';
 import { geometryOf } from './map/geometry';
@@ -84,7 +84,7 @@ function Places({ places, onGo, label }: { places: Place[]; onGo: Props['onGo'];
       <h3>{label}</h3>
       <div className="place-row">
         {uniq.map((p) => (
-          <button key={p.plate!.plate} className={`place ${p.exam}`} onClick={() => onGo(viewAround(p))}>
+          <button key={p.plate!.plate} className={`place ${plateExam(p)}`} onClick={() => onGo(viewAround(p))}>
             <span className="place-no">{p.plate!.plate}</span> <span><Rich s={p.plate!.title} /></span>
           </button>
         ))}
@@ -97,7 +97,9 @@ function Places({ places, onGo, label }: { places: Place[]; onGo: Props['onGo'];
 const latinUpper = (s: string) => s.replace(/[a-z]+/g, (w) => w.toUpperCase());
 
 /** Which exams a selection is drawn for: shared steps (citrate synthase, acetyl-CoA…) carry both badges. */
-const examsOf = (ps: Place[]): Exam[] => (['mid', 'final'] as const).filter((x) => ps.some((p) => p.exam === x));
+const examsOf = (ps: Place[]): Exam[] => (['mid', 'final'] as const).filter((x) => ps.some((p) => p.exam === x || p.exam === 'both'));
+/** The exam a place's plate belongs to (for colouring). */
+const plateExam = (p?: Place): Exam => (p?.plate && (p.plate.part === 'III' || p.plate.part === 'IV') ? 'final' : 'mid');
 
 function Kicker({ exams, plate, what }: { exams: Exam[]; plate?: { plate: number; title: string }; what: string }) {
   return (
@@ -182,7 +184,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
   }, [onClose]);
 
   const places = placesOf(selection, scene);
-  const here = places.find((p) => scope === 'both' || p.exam === scope) ?? places[0];
+  const here = places.find((p) => inExam(p.exam, scope)) ?? places[0];
 
   let body: React.JSX.Element;
   if (selection.kind === 'reg') {
@@ -260,7 +262,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
   }
 
   return (
-    <aside className={`drawer ${here?.exam ?? 'mid'}`} aria-live="polite">
+    <aside className={`drawer ${plateExam(here)}`} aria-live="polite">
       <div className="drawer-tools">
         <button className={`icon-btn${copied ? ' done' : ''}`} onClick={() => onCopyLink().then((ok) => setCopied(ok))}
           aria-label={copied ? 'Link copied' : 'Copy a link to this'} title={copied ? 'Link copied' : 'Copy a link to this (opens here, at this view)'}>

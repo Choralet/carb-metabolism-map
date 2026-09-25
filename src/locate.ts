@@ -1,12 +1,12 @@
 import { regById } from './data/regulation';
-import type { Exam, Region, Scene, Scope } from './data/types';
+import { inExam, type ExamTag, type Region, type Scene, type Scope } from './data/types';
 import type { Selection, View } from './Diagram';
 import { geometryOf } from './map/geometry';
 
 /** One spot on the map where something is drawn. */
-export interface Place { x: number; y: number; plate?: Region; exam: Exam; nodeId?: string }
+export interface Place { x: number; y: number; plate?: Region; exam: ExamTag; nodeId?: string }
 
-const exam = (x: { exam?: Exam }): Exam => x.exam ?? 'mid';
+const exam = (x: { exam?: ExamTag }): ExamTag => x.exam ?? 'mid';
 
 /** Every place a selection appears (an enzyme can label several arrows; a molecule can be drawn on several plates). */
 export function placesOf(sel: NonNullable<Selection>, scene: Scene): Place[] {
@@ -48,8 +48,8 @@ export function molPlaces(molId: string, scene: Scene): Place[] {
     .map((n) => ({ x: n.x, y: n.y, plate: g.plateOf.get(n.id), exam: exam(n), nodeId: n.id }));
 }
 
-/** Prefer a place inside the current scope. */
-export const bestPlace = (ps: Place[], scope: Scope) => ps.find((p) => scope === 'both' || p.exam === scope) ?? ps[0];
+/** Prefer a place the exam switch highlights. */
+export const bestPlace = (ps: Place[], scope: Scope) => ps.find((p) => inExam(p.exam, scope)) ?? ps[0];
 
 export const viewAround = (p: { x: number; y: number }, w = 900, h = 620): View => ({ x: p.x - w / 2, y: p.y - h / 2, w, h });
 

@@ -9,7 +9,21 @@ The lecture decks are called **Parts**, and each Part is drawn as numbered **pla
 | I | glycolysis, gluconeogenesis, pentose phosphate pathway, glycogen | midterm | 1–8 (I and II together) |
 | II | citric acid cycle, oxidative phosphorylation | midterm | |
 | III | lipid metabolism | final | 9–19 |
-| IV | metabolism of N-containing compounds | final | 20–35 |
+| IV | metabolism of N-containing compounds | final | 20–34 |
+
+**The map is one cell** (`src/data/atlas.ts`), and the plates tile it:
+- Carbohydrates run down the middle; glycolysis is the spine at x = 5600.
+- Lipids sit to the left, nitrogen metabolism to the right, and amino acid synthesis and nucleotides further right.
+- The mitochondrion fills the lower left. Its double membrane runs along the top edge (y 2560–2850: outer membrane, intermembrane space, inner membrane) and down the right edge (x 7500–7790). Every transport step crosses one of those two edges.
+- Side panels outside the cell (dashed frames, `outside: true`) hold what happens elsewhere: digestion, ketone bodies as fuel, the glucose–alanine cycle.
+
+Pathways join where they share a molecule, and they are drawn once:
+- β-oxidation hands its acetyl-CoA to the citric acid cycle's `accoa`.
+- Glycerol 3-phosphate is made from glycolysis's `dhap`.
+- Glutamate dehydrogenase feeds the cycle's `akg`.
+- The amino-acid "carbon skeleton" boxes point at the real cycle intermediates.
+
+**The exam switch only highlights.** Midterm / Final / Both never hides or moves anything; the other exam's material fades. `scene.ts` marks a molecule `'both'` when a midterm and a final pathway both touch it, so it stays lit either way.
 
 ## Commands
 - `npm run dev` — dev server.
@@ -19,7 +33,10 @@ The lecture decks are called **Parts**, and each Part is drawn as numbered **pla
   - **Run it after adding or changing any SMILES.** A missing drawing fails the check.
 - `npm run preview` — serves `dist/`, for looking at a built site in a browser.
 - `npm test` — unit tests (Node's built-in runner; `tests/*.test.mjs`, currently the quiz grader).
-- `npm run test:e2e` — browser tests against the build (run `npm run build` first). `tests/e2e/run.mjs` serves `dist/` with `vite preview` and runs each suite (`smoke.mjs`, `links.mjs`) in one Chromium.
+- `npm run test:e2e` — browser tests against the build (run `npm run build` first). `tests/e2e/run.mjs` serves `dist/` with `vite preview` and runs each suite in one Chromium:
+  - `smoke.mjs` — main features;
+  - `links.mjs` — deep links and history;
+  - `layout.mjs` — **no label may overlap another label or cross an arrow**. It measures every label from the browser's own layout and names both parties and the map position of any collision.
   - **Browser choice:** `CHROMIUM_PATH` if set, else an installed Google Chrome, else Playwright's own build (`npx playwright-core install chromium`).
   - `HEADED=1` shows the window.
 
@@ -27,7 +44,7 @@ The lecture decks are called **Parts**, and each Part is drawn as numbered **pla
 
 ## Where things live
 ```
-src/data/        all content (below); scene.ts assembles the map
+src/data/        all content (below); atlas.ts arranges the one-cell map, scene.ts tags exams
 src/map/         geometry.ts (text-measured boxes, arrow routing, cofactor arcs; cached per scene) · glyphs.tsx
 src/Diagram.tsx  the SVG map: camera, detail by zoom level, rendering, quiz / route / highlight states
 src/Drawer.tsx   details panel (enzyme, molecule, card, regulation), structure drawings, study tables
@@ -43,9 +60,14 @@ tests/           grade.test.mjs (unit) · e2e/ (browser suites and their runner)
 Data (`src/data/`):
 - `types.ts` — every data type. Read it first.
 - **Registries:** `molecules.ts`, `enzymes.ts`, `cards.ts`, `regulation.ts`, `cofactors.ts`. The Part III and IV entries live in `part3/` and `part4/` and are spread into these.
-- `layout.ts` — midterm plates 1–8, placed by hand in absolute coordinates. It also exports a **phone scene** that re-lays out only plates 7–8 (the NADH shuttles).
-- `part3/layout.ts`, `part4/layout.ts` — the final plates. Each is a `PlateDef` written in local coordinates and positioned with `place(p, x, y)` from `plate.ts`.
-- `scene.ts` — merges the midterm and final parts, and tags final content with `exam: 'final'`. Never set `exam` by hand.
+- `layout.ts` — midterm plates 1–8 in map coordinates (carbohydrates, the citric acid cycle, the respiratory chain, the two NADH shuttles).
+- `part3/layout.ts`, `part4/layout.ts` — the final plates, as `PlateDef`s (`plate.ts`):
+  - The ones that join other pathways are written in map coordinates, with `x`/`y` giving the frame's corner.
+  - The biosynthesis, nucleotide and side-panel plates are in their own coordinates, and `atlas.ts` places them.
+  - `place(p, dx, dy)` shifts either kind as a whole.
+- `atlas.ts` — the arrangement: where each plate goes, the cell and mitochondrion (`compartments`), the membrane bands and their captions, and the steps shared by both exams (`BOTH`).
+- `scene.ts` — derives each molecule's exam from the arrows that touch it. Final plates are tagged `exam: 'final'` in `atlas.ts`; don't set `exam` by hand except through `BOTH`.
+- One scene serves desktop and phone; plates stay at most ~1300 units wide.
 - `pools.ts` — the route tracer's compartment splits (see Recipes).
 - `chem.ts` — `cx()`, which builds SMILES with labelled pseudo-atoms (R, CoA, ACP).
 - `structures.json` — generated. Don't edit it by hand.
@@ -90,7 +112,7 @@ Data (`src/data/`):
 - **`dir: 'both'`** marks the step reversible: it is drawn as harpoons, and the route tracer may run it backwards.
 - **Side arrows and routing:**
   - `feed` is a co-substrate curving into the label; `out` is a co-product leaving it.
-  - `via` lists waypoints (plate-local inside a `PlateDef`).
+  - `via` lists waypoints, in the same coordinates as the plate's nodes.
   - `t` sets where along the path the label sits.
   - `off` offsets the arrow sideways, for two arrows between the same pair of nodes.
 - **`style`:** `'gng'` is dashed (gluconeogenesis), `'plain'` is a summary or transport arrow, `'link'` is a dotted connector.
@@ -105,15 +127,26 @@ Data (`src/data/`):
   - `'xref'`: a cross-reference. `link` is the local anchor and `target` is the node elsewhere; the "▸ PLATE n · FINAL" line is computed.
 - `badge` adds a small note after the label.
 
-### Plate (final exam)
-1. Write a `PlateDef` in `part3/` or `part4/layout.ts`, in local coordinates (0,0 = top-left corner).
-2. Add it to `placed` with `place(p, x, y)`.
+### Plate
+1. Write a `PlateDef` in `part3/` or `part4/layout.ts`.
+   - Joining existing pathways: use map coordinates (set `x`, `y`).
+   - Self-contained: use its own coordinates and add it to `placed` in `atlas.ts`.
+2. Find free room first; the validator rejects plates that overlap.
+   - A plate may be L-shaped: `more` adds rectangles, and they are drawn with one outline (the urea cycle straddles the membrane this way).
+   - If an arrow enters through the title bar, move the title with `titleX` or `right: true`.
 3. Keep plates at most ~1300 units wide, so they fit a phone screen.
-4. Keep plate numbers unique. Final plates must sit at least 60 units right of the midterm area. Current columns: Part III at x ≈ 2600–6940, Part IV at x ≈ 7100–15960.
-5. Draw membranes as `bands`, compartment names as `captions`, and side headings as `labels` (`kind: 'phase'`).
+4. Keep plate numbers unique and in lecture order. Something that happens outside the cell goes in a side panel (`outside: true`) beyond the cell's edge.
+5. Draw local membranes as `bands`, compartment names as `captions`, and side headings as `labels` (`kind: 'phase'`). The mitochondrion's own membranes are already there. A step that crosses a membrane should put its transporter label on the membrane: set `t` on the edge.
 
-### Cross-reference drawn on another plate
-Examples include a midterm molecule pointing into Part IV. These go in the part's `midXrefs` / `outsideXrefs`, in **absolute** coordinates. Midterm plates 1–6 sit in the same place in the phone scene; plates 7–8 do not, so don't anchor there.
+### Joining pathways (hub molecules)
+A molecule that several pathways use is drawn once per compartment, and every pathway points at that node by id: `accoa` (matrix acetyl-CoA), `lf_accoa` (cytosolic acetyl-CoA), `pyr`, `dhap`, `pg3`, `oaa`, `akg`, `succoa`, `fum`, `cit`, `lt_facoa` (cytosolic fatty acyl-CoA), `nu_glu` (matrix glutamate), `np_imp`, `nsg_ser`, `nsg_gly`. Arrows may cross plate boundaries.
+- Where one node would tangle the arrows, draw a copy, and choose how to join it to the hub:
+  - Nearby: an arrow with `style: 'link'` (a dotted line). The validator checks that both ends draw the same molecule.
+  - Far away: an `xref` node, a note that flies the camera there.
+- A copy in the other compartment is a different pool: list it in `pools.ts`.
+
+### Cross-reference
+An `xref` node is a note beside a molecule: `link` is the local anchor, and `target` is the node to fly to. Use it only for far-apart relations; a real arrow or a dotted link is better when the two are close.
 
 ### Regulation box
 - Goes in the part's `regulation.ts`, with `id: 'r_' + enzymeId`. The drawer finds it by that id.
@@ -140,7 +173,8 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
 - **Structure drawings:**
   - Bonds are drawn in a coordinate system scaled ×100, so `gen-structures.mjs` keeps three decimals there. Rounding harder erases the bonds.
   - The drawings are one ~1.8 MB chunk, cached for offline use. The PWA cache limit is 3 MiB, set in `vite.config.ts`.
-- **Phones:** `PHONE_QUERY` (max-width 720px) switches to the phone scene. Jumping to a plate opens it at reading size (`regionView`).
+- **Phones:** `PHONE_QUERY` (max-width 720px) changes camera framing only: the map opens at the top of glycolysis at reading size, and jumping to a plate opens its top-left at reading size (`regionView`). A desktop opens on the whole cell.
+- **The exam switch** (`inExam(tag, scope)` in `types.ts`) decides what fades. The quiz, the highlight counts and search ranking follow it. Routes always search the whole map.
 - **Deep links:**
   - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`.
   - Opening the drawer pushes one history entry and switching selections replaces it, so Back closes the drawer. Keep that behaviour.
@@ -154,6 +188,6 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
    - When you rename or move something a check names, update that check.
 3. Look at what you changed in a browser, at reading zoom:
    - on desktop and on a phone-sized (~390 px) window;
-   - in light and dark mode;
-   - checking that labels don't collide with arrows, cofactor arcs or membranes.
+   - in light and dark mode.
+   The layout suite catches labels that collide with each other or with arrows. It does not catch labels on a membrane, or plates that merely feel crowded, so still look.
 4. Write commit messages with an imperative subject line, then a short body saying what changed and why.

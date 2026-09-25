@@ -1,6 +1,7 @@
 import { enzById } from '../data/enzymes';
 import { molById } from '../data/molecules';
 import { regBlocks, type RegBlock } from '../data/regulation';
+import { onPlate } from '../data/plate';
 import type { Edge, Exam, MapNode, Region, Scene } from '../data/types';
 import { measure, onTextReset, wrap } from '../text';
 
@@ -208,20 +209,18 @@ export interface Geometry {
   regGeoms: Map<string, RegGeom>;
   /** The plate a node sits on (by position). */
   plateOf: Map<string, Region>;
-  /** Bounding box of each exam's plates, for "fit" and the start view. */
+  /** Bounding box of each exam's plates, and of the whole map ('both'), for "fit" and the start view. */
   bounds: Record<Exam | 'both', Bounds>;
-  /** Vertical strip between the midterm and final plates, if both exist. */
-  seam: { x: number; w: number; y: number; h: number } | null;
 }
 
 let geometries = new WeakMap<Scene, Geometry>();
 onTextReset(() => { geometries = new WeakMap(); });
 
-const inRect = (r: Region, p: P) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 function union(rs: Region[]): Bounds {
-  if (!rs.length) return { x: 0, y: 0, w: 1000, h: 1000 };
-  const x = Math.min(...rs.map((r) => r.x)), y = Math.min(...rs.map((r) => r.y));
-  return { x, y, w: Math.max(...rs.map((r) => r.x + r.w)) - x, h: Math.max(...rs.map((r) => r.y + r.h)) - y };
+  const all = rs.flatMap((r) => [r, ...(r.more ?? [])]);
+  if (!all.length) return { x: 0, y: 0, w: 1000, h: 1000 };
+  const x = Math.min(...all.map((r) => r.x)), y = Math.min(...all.map((r) => r.y));
+  return { x, y, w: Math.max(...all.map((r) => r.x + r.w)) - x, h: Math.max(...all.map((r) => r.y + r.h)) - y };
 }
 
 export function geometryOf(scene: Scene): Geometry {
@@ -232,16 +231,11 @@ export function geometryOf(scene: Scene): Geometry {
   const regGeoms = new Map<string, RegGeom>();
   regBlocks.forEach((r) => { const rg = regGeom(r, nodeMap, routed); if (rg) regGeoms.set(r.id, rg); });
   const plateOf = new Map<string, Region>();
-  scene.nodes.forEach((n) => { const r = scene.regions.find((x) => inRect(x, n)); if (r) plateOf.set(n.id, r); });
+  scene.nodes.forEach((n) => { const r = scene.regions.find((x) => onPlate(x, n.x, n.y)); if (r) plateOf.set(n.id, r); });
   const mid = scene.regions.filter((r) => r.part === 'I' || r.part === 'II');
   const fin = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV');
   const bounds = { mid: union(mid), final: union(fin.length ? fin : mid), both: union(scene.regions) };
-  let seam: Geometry['seam'] = null;
-  if (mid.length && fin.length) {
-    const a = bounds.mid.x + bounds.mid.w, b = bounds.final.x;
-    seam = { x: a, w: b - a, y: Math.min(bounds.mid.y, bounds.final.y) - 20, h: Math.max(bounds.mid.h, bounds.final.h) + 40 };
-  }
-  g = { nodeMap, routed, regGeoms, plateOf, bounds, seam };
+  g = { nodeMap, routed, regGeoms, plateOf, bounds };
   geometries.set(scene, g);
   return g;
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { enzById } from '../data/enzymes';
-import type { Scene, Scope } from '../data/types';
+import type { Scene } from '../data/types';
 import type { View } from '../Diagram';
 import { viewAround } from '../locate';
 import { geometryOf } from '../map/geometry';
@@ -9,14 +9,12 @@ import { identityName, type Route, type Step } from '../route';
 import { ChevronIcon, CloseIcon, SwapIcon } from './icons';
 
 interface Props {
-  scene: Scene; scope: Scope;
+  scene: Scene;
   from: string; to: string;
   route: Route | null;
   onGo: (v: View) => void;
   onSwap: () => void;
   onClear: () => void;
-  /** Offered when nothing connects the two in the current scope. */
-  onWiden: () => void;
 }
 
 /** What carries a step: its enzyme, or for a summary arrow the note written on it. */
@@ -26,7 +24,7 @@ function how(s: Step): string {
   return e.plainTag && e.tags ? e.tags : 'summary arrow';
 }
 
-export default function RouteBar({ scene, scope, from, to, route, onGo, onSwap, onClear, onWiden }: Props) {
+export default function RouteBar({ scene, from, to, route, onGo, onSwap, onClear }: Props) {
   const [open, setOpen] = useState(true);
   const name = (id: string) => identityName(id, scene);
   const { routed, plateOf } = geometryOf(scene);
@@ -38,14 +36,13 @@ export default function RouteBar({ scene, scope, from, to, route, onGo, onSwap, 
         <span className="rb-ends"><b><Rich s={name(from)} /></b> <span aria-hidden="true">→</span><span className="sr-only">to</span> <b><Rich s={name(to)} /></b></span>
         {route
           ? <span className="rb-meta">{n} step{n === 1 ? '' : 's'} · Plate{route.plates.length === 1 ? '' : 's'} {route.plates.join(', ')}</span>
-          : <span className="rb-meta none">No drawn route{scope === 'both' ? '' : ' in this scope'}</span>}
+          : <span className="rb-meta none">No drawn route</span>}
         <span className="rb-tools">
           {route && (
             <button className="qb-btn" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
               <ChevronIcon up={!open} /> Steps
             </button>
           )}
-          {!route && scope !== 'both' && <button className="qb-btn" onClick={onWiden}>Search both exams</button>}
           <button className="qb-btn" onClick={onSwap} title="Trace the other way"><SwapIcon /> Reverse</button>
           <button className="icon-btn" onClick={onClear} aria-label="Clear the route"><CloseIcon /></button>
         </span>

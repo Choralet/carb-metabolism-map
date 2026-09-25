@@ -16,7 +16,7 @@ export default async function links({ browser, base, check: ok }) {
   await p.goto(`${base}#enz/n_gs`, { waitUntil: 'networkidle' });
   await p.waitForSelector('svg[data-lod]');
   ok((await drawerTitle()) === 'Glutamine synthetase', 'a link opens the drawer on its enzyme');
-  ok(/Both/.test(await p.locator('.scope [aria-checked="true"]').innerText()), 'a link into a hidden exam widens the scope to Both');
+  ok(/Both/.test(await p.locator('.scope [aria-checked="true"]').innerText()), 'a link into a faded exam widens the scope to Both');
   const [x, y, w, h] = await view();
   const cx = x + w / 2, cy = y + h / 2;
   ok(cx > plate22.x && cx < plate22.x + plate22.w && cy > plate22.y && cy < plate22.y + plate22.h, `the camera centres on Plate 22 (${Math.round(cx)}, ${Math.round(cy)})`);

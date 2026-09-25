@@ -1,6 +1,6 @@
 import { molById } from './data/molecules';
 import { POOL, POOL_LABEL } from './data/pools';
-import type { Edge, MapNode, Scene, Scope } from './data/types';
+import type { Edge, MapNode, Scene } from './data/types';
 import { geometryOf, labelOf } from './map/geometry';
 
 /**
@@ -39,14 +39,14 @@ interface Arc { to: string; edge: Edge; fromNode: string; toNode: string; cost: 
 const SUMMARY = 12;
 const costOf = (e: Edge, a: string, b: string) => (e.enz || baseOf(a) === baseOf(b) ? 1 : SUMMARY);
 
-const graphs = new WeakMap<Scene, Partial<Record<Scope, Map<string, Arc[]>>>>();
+const graphs = new WeakMap<Scene, Map<string, Arc[]>>();
 
 /**
  * Arcs follow the arrows as drawn: forward, backward too when the arrow is drawn reversible, plus the side
- * arrows (a co-substrate feeding in, a co-product leaving). Midterm scope leaves out the final plates.
+ * arrows (a co-substrate feeding in, a co-product leaving). Routes use the whole map whatever the exam switch shows.
  */
-function graphOf(scene: Scene, scope: Scope): Map<string, Arc[]> {
-  const hit = graphs.get(scene)?.[scope];
+function graphOf(scene: Scene): Map<string, Arc[]> {
+  const hit = graphs.get(scene);
   if (hit) return hit;
   const { nodeMap } = geometryOf(scene);
   const g = new Map<string, Arc[]>();
@@ -59,7 +59,6 @@ function graphOf(scene: Scene, scope: Scope): Map<string, Arc[]> {
     }
   };
   for (const e of scene.edges) {
-    if (scope === 'mid' && e.exam === 'final') continue;
     const A = nodeMap[e.from], B = nodeMap[e.to];
     if (!A || !B) continue;
     add(A, B, e);
@@ -67,7 +66,7 @@ function graphOf(scene: Scene, scope: Scope): Map<string, Arc[]> {
     if (e.feed && nodeMap[e.feed]) add(nodeMap[e.feed], B, e);
     if (e.out && nodeMap[e.out]) add(A, nodeMap[e.out], e);
   }
-  graphs.set(scene, { ...graphs.get(scene), [scope]: g });
+  graphs.set(scene, g);
   return g;
 }
 
@@ -78,9 +77,9 @@ const PLATE_CHANGE = 0.3;
  * The best drawn route from one molecule to another (fewest steps, preferring named steps over summaries and
  * staying on a plate), starting from any pool of the first and ending in any pool of the second; or null.
  */
-export function traceRoute(scene: Scene, scope: Scope, from: string, to: string): Route | null {
+export function traceRoute(scene: Scene, from: string, to: string): Route | null {
   if (from === to) return null;
-  const g = graphOf(scene, scope);
+  const g = graphOf(scene);
   const { plateOf } = geometryOf(scene);
   const plate = (nodeId: string) => plateOf.get(nodeId)?.plate ?? -1;
   // Dijkstra over (identity, plate) states; the graph has a few hundred arcs, so a sorted array is plenty

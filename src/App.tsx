@@ -3,7 +3,7 @@ import Diagram, { type Selection, type View } from './Diagram';
 import Drawer from './Drawer';
 import { classById, enzById } from './data/enzymes';
 import { desktopScene, phoneScene } from './data/scene';
-import type { CoKey, EnzClass, Exam, Scene, Scope } from './data/types';
+import { inExam, type CoKey, type EnzClass, type ExamTag, type Scene, type Scope } from './data/types';
 import { allKinds, keyPlates, keysFor, loadQuiz, questionOf, quizKeys, saveQuiz, type Answer, type QuizKind, type QuizSave, type QuizState } from './quiz';
 import QuizAsk from './shell/QuizAsk';
 import type { Where } from './shell/QuizBar';
@@ -34,17 +34,17 @@ const store = {
   set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
 };
 
-const inScope = (x: { exam?: Exam }, s: Scope) => s === 'both' || (x.exam ?? 'mid') === s;
+const inScope = (x: { exam?: ExamTag }, s: Scope) => inExam(x.exam, s);
 
-/** Where the camera starts for a scope: the top of glycolysis, or the first final plate. */
-function startView(scene: Scene, scope: Scope, phone: boolean): View {
-  if (scope === 'final') {
-    const first = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV').sort((a, b) => a.plate - b.plate)[0];
-    // the top of the first plate at reading size (a whole plate is too tall to read at once)
-    if (first) return phone ? regionView(first, true) : { x: first.x - 40, y: first.y - 20, w: 1800, h: 1100 };
-  }
-  // tall on phones, so the fit keeps the top edge near the top of the plate instead of centring on empty desk
-  return phone ? { x: 850, y: -24, w: 600, h: 1160 } : { x: 560, y: 0, w: 1020, h: 1120 };
+/**
+ * Where the camera starts: on a desktop the whole cell, the big picture; on a phone the top of glycolysis at reading
+ * size (tall, so the fit keeps the top edge near the top of the plate instead of centring on empty desk).
+ */
+function startView(scene: Scene, phone: boolean): View {
+  const glc = geometryOf(scene).nodeMap.glc;
+  if (phone) return { x: glc.x - 290, y: glc.y - 110, w: 600, h: 1160 };
+  const b = geometryOf(scene).bounds.both;
+  return { x: b.x - 40, y: b.y - 40, w: b.w + 80, h: b.h + 80 };
 }
 
 /** A linked selection that no longer exists (renamed id, typo) is ignored rather than crashing the drawer. */
@@ -63,13 +63,13 @@ function linkView(l: Link, scene: Scene, scope: Scope): View | null {
   return p ? viewAround(p) : null;
 }
 
-/** A link into material the stored scope hides widens the scope, so the link never lands on an empty desk. */
+/** A link into material the stored exam switch fades widens it to Both, so the link never lands on faded ink. */
 function scopeFor(l: Link | null, scene: Scene, scope: Scope): Scope {
   if (!l || scope === 'both') return scope;
-  const exams = l.sel ? placesOf(l.sel, scene).map((p) => p.exam)
+  const exams: ExamTag[] = l.sel ? placesOf(l.sel, scene).map((p) => p.exam)
     : l.plate ? scene.regions.filter((r) => r.plate === l.plate).map((r) => (r.part === 'III' || r.part === 'IV' ? 'final' : 'mid'))
       : [];
-  return exams.length && !exams.includes(scope) ? 'both' : scope;
+  return exams.length && !exams.some((x) => inExam(x, scope)) ? 'both' : scope;
 }
 
 /** A drawn node for a quiz key: the node itself, an enzyme's first arrow, or a label's arrow. */
@@ -115,7 +115,7 @@ export default function App() {
   const [co, setCo] = useState<Set<CoKey>>(new Set());
   const [showReg, setShowReg] = useState(false);
   const [selection, setSelection] = useState<Selection>(() => link?.sel ?? null);
-  const [start] = useState(() => (link && linkView(link, scene, scope)) || startView(scene, scope, phone));
+  const [start] = useState(() => (link && linkView(link, scene, scope)) || startView(scene, phone));
   const [focus, setFocus] = useState<{ view: View; n: number }>({ view: start, n: 0 });
   const [panel, setPanel] = useState<Panel>(null);
   const [searching, setSearching] = useState(false);
@@ -165,12 +165,12 @@ export default function App() {
   // ── route tracer ──────────────────────────────────────────────────
   const [routeEnds, setRouteEnds] = useState<{ from: string; to: string } | null>(null);
   const [routePick, setRoutePick] = useState<{ fixed: string; end: 'from' | 'to' } | null>(null);
-  const traced = useMemo(() => (routeEnds ? traceRoute(scene, scope, routeEnds.from, routeEnds.to) : null), [routeEnds, scene, scope]);
+  const traced = useMemo(() => (routeEnds ? traceRoute(scene, routeEnds.from, routeEnds.to) : null), [routeEnds, scene]);
   const routeHi = useMemo(() => (traced ? { edges: traced.edges, nodes: traced.nodes } : null), [traced]);
   /** Show a new route whole when it fits on screen, else start at its first step (the step list walks the rest). */
-  const showRoute = (from: string, to: string, sc: Scope = scope) => {
+  const showRoute = (from: string, to: string) => {
     setRouteEnds({ from, to });
-    const r = traceRoute(scene, sc, from, to);
+    const r = traceRoute(scene, from, to);
     if (!r) return;
     const { nodeMap, routed } = geometryOf(scene);
     const pts = [...r.nodes].map((id) => nodeMap[id]);
@@ -181,11 +181,10 @@ export default function App() {
   };
   const startRoutePick = (mol: string, end: 'from' | 'to') => { closeDrawer(); setRoutePick({ fixed: mol, end }); };
 
+  /** The exam switch only changes what is highlighted; the camera stays where it is. */
   const changeScope = (s: Scope) => {
     setScope(s);
     store.set('atlas-scope', s);
-    // follow the material: Final flies to the final wing, Midterm back to the carbohydrate map
-    if (s !== 'both') go(startView(scene, s, phone));
   };
 
   // ── quiz ──────────────────────────────────────────────────────────
@@ -283,7 +282,7 @@ export default function App() {
     if (sel) select(sel);
   };
 
-  const scopeNote = scope === 'both' ? 'all plates' : scope === 'final' ? 'final plates only' : 'midterm plates only';
+  const scopeNote = scope === 'both' ? 'whole map' : scope === 'final' ? 'final-exam material' : 'midterm material';
   const highlights = filter.size + co.size;
 
   return (
@@ -303,9 +302,8 @@ export default function App() {
           focus={focus} start={start} quiz={quiz} onReveal={reveal} route={routeHi} />
 
         {routeEnds && (
-          <RouteBar scene={scene} scope={scope} from={routeEnds.from} to={routeEnds.to} route={traced} onGo={go}
-            onSwap={() => showRoute(routeEnds.to, routeEnds.from)} onClear={() => setRouteEnds(null)}
-            onWiden={() => { setScope('both'); showRoute(routeEnds.from, routeEnds.to, 'both'); }} />
+          <RouteBar scene={scene} from={routeEnds.from} to={routeEnds.to} route={traced} onGo={go}
+            onSwap={() => showRoute(routeEnds.to, routeEnds.from)} onClear={() => setRouteEnds(null)} />
         )}
         {!routeEnds && highlights > 0 && (
           <div className="hl-bar" role="status">

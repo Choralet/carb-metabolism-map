@@ -10,6 +10,8 @@
   --paper: #FBF7EF;
   --paper-fin: #EEF3EE;
   --paper-2: #F2ECE0;
+  --cyto: #F1ECE2;
+  --matrix: #E9D6B4;
   --panel: #FCF9F3;
   --ink: #221E19;
   --ink-2: #5E554A;
@@ -41,6 +43,8 @@
   --paper: #221F1B;
   --paper-fin: #1B2421;
   --paper-2: #2C2823;
+  --cyto: #1A1814;
+  --matrix: #2B2317;
   --panel: #1C1916;
   --ink: #EFE7DA;
   --ink-2: #B5AA9A;
@@ -162,9 +166,17 @@ svg[data-lod="far"] .eline .shaft { stroke-width: 3.2; }
 svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 
 /* plates */
-.plate-bg { fill: var(--paper); stroke: var(--hair); stroke-width: 1.2; }
-.plate.final .plate-bg { fill: var(--paper-fin); }
-.plate-in { fill: none; stroke: var(--hair-2); stroke-width: 1; }
+/* a plate's outline is drawn in two passes (edges, then fills), so an L-shaped plate gets one outline */
+.plate-bg.edge { fill: none; stroke: var(--hair); stroke-width: 2.4; }
+.plate-bg.fill { fill: var(--paper); stroke: none; }
+.plate.final .plate-bg.fill { fill: var(--paper-fin); }
+.plate-in.edge { fill: none; stroke: var(--hair-2); stroke-width: 1; }
+.plate.outside .plate-bg.edge { stroke-dasharray: 10 7; }
+/* the cell and its mitochondrion, behind the plates */
+.cmp-body { fill: var(--cyto); stroke: var(--mem-head); stroke-width: 3.5; }
+.cmp-line { fill: none; stroke: var(--mem-head); stroke-width: 1.6; opacity: .55; }
+.compartment.mito .cmp-body { fill: var(--matrix); }
+.cmp-label { font: 500 22px var(--f-mono); letter-spacing: .3em; fill: var(--mem-head); }
 .plate-tab { fill: var(--mid); }
 .plate.final .plate-tab { fill: var(--fin); }
 .plate-tabt { font: 500 9.5px var(--f-mono); letter-spacing: .12em; fill: var(--tab-ink); }
@@ -177,8 +189,6 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 .far-title .far-t { font-family: var(--f-display); font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: var(--paper); stroke-width: 12px; stroke-linejoin: round; }
 .far-title .far-no { font-family: var(--f-mono); font-weight: 500; letter-spacing: .18em; fill: var(--mid); paint-order: stroke; stroke: var(--paper); stroke-width: 8px; }
 
-.seam path { stroke: var(--ink-3); stroke-width: 2; stroke-dasharray: 12 9; fill: none; }
-.seam text { font: 500 13px var(--f-mono); letter-spacing: .24em; fill: var(--ink-3); }
 
 .label.section .lt { font: 600 18px var(--f-display); fill: var(--ink-2); }
 .label.section .ls { font: italic 500 12.5px var(--f-serif); fill: var(--ink-3); }

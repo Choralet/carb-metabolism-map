@@ -1,6 +1,6 @@
 import { enzById } from './data/enzymes';
 import { molById } from './data/molecules';
-import type { Edge, Exam, MapNode, Scene, Scope } from './data/types';
+import { inExam, type Edge, type ExamTag, type MapNode, type Scene, type Scope } from './data/types';
 import { geometryOf, labelOf } from './map/geometry';
 import { grade as gradeText } from './grade';
 
@@ -28,7 +28,7 @@ export const tagKey = (e: Edge) => `tag:${e.id}`;
 export const kindOfKey = (key: string, scene: Scene): QuizKind =>
   key.startsWith('tag:') ? 'tag' : geometryOf(scene).nodeMap[key] && nodeQuizKind(geometryOf(scene).nodeMap[key]) === 'met' ? 'met' : 'enz';
 
-const inScope = (x: { exam?: Exam }, scope: Scope) => scope === 'both' || (x.exam ?? 'mid') === scope;
+const inScope = (x: { exam?: ExamTag }, scope: Scope) => inExam(x.exam, scope);
 
 /**
  * Quiz keys per kind, for one scope. Enzyme keys are shared per enzyme, so an enzyme named in several places
