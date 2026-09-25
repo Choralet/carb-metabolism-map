@@ -8,7 +8,9 @@
     "build": "node scripts/check-data.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "structures": "node scripts/gen-structures.mjs",
-    "check": "node scripts/check-data.mjs"
+    "check": "node scripts/check-data.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "node tests/e2e/run.mjs"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.3.0",
@@ -25,6 +27,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "playwright-core": "^1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vite-plugin-node-polyfills": "^0.28.0",

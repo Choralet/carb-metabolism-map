@@ -18,6 +18,10 @@ The lecture decks are called **Parts**, and each Part is drawn as numbered **pla
 - `npm run structures` — re-renders the molecule drawings into `src/data/structures.json` (using indigo-ketcher).
   - **Run it after adding or changing any SMILES.** A missing drawing fails the check.
 - `npm run preview` — serves `dist/`, for looking at a built site in a browser.
+- `npm test` — unit tests (Node's built-in runner; `tests/*.test.mjs`, currently the quiz grader).
+- `npm run test:e2e` — browser tests against the build (run `npm run build` first). `tests/e2e/run.mjs` serves `dist/` with `vite preview` and runs each suite (`smoke.mjs`, `links.mjs`) in one Chromium.
+  - **Browser choice:** `CHROMIUM_PATH` if set, else an installed Google Chrome, else Playwright's own build (`npx playwright-core install chromium`).
+  - `HEADED=1` shows the window.
 
 **Deploy:** a push to `main` runs `.github/workflows/pages.yml` (`npm ci`, then `npm run build`, then publish to Pages). Work on a branch; the live site changes only after merge.
 
@@ -33,6 +37,7 @@ src/text.ts      sub/superscript runs, text measuring and wrapping, search norma
 src/rich.tsx     <Rich> (HTML) and <Tspans> (SVG) for text containing ₂ ⁺ ⁻ …
 src/quiz.ts · grade.ts · route.ts · links.ts · locate.ts
 scripts/         check-data.mjs (validator) · gen-structures.mjs
+tests/           grade.test.mjs (unit) · e2e/ (browser suites and their runner)
 ```
 
 Data (`src/data/`):
@@ -144,8 +149,11 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
 
 ## Before you push
 1. `npm run build` passes with 0 errors. Treat any new validator warning as a bug.
-2. Look at what you changed in a browser, at reading zoom:
+2. `npm test` and `npm run test:e2e` pass. When you change behaviour, update or add checks in `tests/e2e/`.
+   - Suites read expected counts from the data (e.g. how many final plates exist), so adding content shouldn't break them.
+   - When you rename or move something a check names, update that check.
+3. Look at what you changed in a browser, at reading zoom:
    - on desktop and on a phone-sized (~390 px) window;
    - in light and dark mode;
    - checking that labels don't collide with arrows, cofactor arcs or membranes.
-3. Write commit messages with an imperative subject line, then a short body saying what changed and why.
+4. Write commit messages with an imperative subject line, then a short body saying what changed and why.
