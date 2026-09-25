@@ -13,4 +13,6 @@ export const cofactors: CoInfo[] = [
   { id: 'UTP', label: 'UTP / UDP', hint: 'Sugar-nucleotide steps of glycogen synthesis' },
   { id: 'Biotin', label: 'Biotin', hint: 'Carboxylases the slides name with a biotin prosthetic group: acetyl-CoA carboxylase and propionyl-CoA carboxylase' },
   { id: 'B12', label: 'Coenzyme B₁₂', hint: 'Methylmalonyl-CoA mutase (odd-chain fatty acids)' },
+  { id: 'PLP', label: 'PLP', hint: 'Pyridoxal phosphate: aminotransferases, serine hydroxymethyltransferase, the cystathionine enzymes and the amino acid decarboxylases' },
+  { id: 'THF', label: 'Folate (H₄ folate)', hint: 'Steps that load or use one-carbon units on tetrahydrofolate: purine and thymidylate synthesis, serine → glycine' },
 ];

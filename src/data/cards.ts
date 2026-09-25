@@ -1,5 +1,6 @@
 import type { Card } from './types';
 import { lipidCards } from './part3/cards.ts';
+import { aminoCards } from './part4/cards.ts';
 
 export const cards: Card[] = [
   { id: 'c_gly_bal', title: 'Glycolysis: balance sheet', sub: 'Glucose (6C) → 2 pyruvate (3C), 10 steps, all in the cytosol',
@@ -100,6 +101,7 @@ export const cards: Card[] = [
       'The inner membrane is impermeable to protons; they return only through F₀ of ATP synthase, driving F₁ to make ATP.',
     ], slide: 'Part II · slides 17, 21–24' },
   ...lipidCards,
+  ...aminoCards,
 ];
 
 export const cardById = Object.fromEntries(cards.map((c) => [c.id, c])) as Record<string, Card>;

@@ -39,7 +39,7 @@ function Structure({ molId, onEdit }: { molId: string; onEdit: Props['onEdit'] }
         {svg ? <div dangerouslySetInnerHTML={{ __html: svg }} /> : <span className="muted">{err ? 'Could not draw' : 'Drawing…'}</span>}
       </div>
       <figcaption>
-        <Rich s={m.name} />
+        <span><Rich s={m.name} /></span>
         <button className="link" onClick={() => onEdit(m.name, m.smiles!)}>Edit in Ketcher</button>
       </figcaption>
     </figure>
@@ -61,7 +61,7 @@ function Places({ places, onGo, label }: { places: Place[]; onGo: Props['onGo'];
       <div className="place-row">
         {uniq.map((p) => (
           <button key={p.plate!.plate} className={`place ${p.exam}`} onClick={() => onGo(viewAround(p))}>
-            <span className="place-no">{p.plate!.plate}</span> <Rich s={p.plate!.title} />
+            <span className="place-no">{p.plate!.plate}</span> <span><Rich s={p.plate!.title} /></span>
           </button>
         ))}
       </div>
@@ -209,7 +209,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
             <div className="chips-row">
               {related.map((e) => (
                 <button key={e.id} className="enz-link" onClick={() => onSelect({ kind: 'enz', id: e.id })}>
-                  <MarkIcon cls={e.cls[0]} /> <Rich s={e.short} />
+                  <MarkIcon cls={e.cls[0]} /> <span><Rich s={e.short} /></span>
                 </button>
               ))}
             </div>

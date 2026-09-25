@@ -1,30 +1,7 @@
-import type { Band, Caption, Edge, JumpView, Label, MapNode, Part, Region, Scene } from '../types';
+import type { MapNode } from '../types';
+import { combine, place, type PlateDef } from '../plate.ts';
 
-/**
- * Part III (lipid metabolism) plates, in the final-exam wing to the right of the carbohydrate map.
- * Each plate is written in its own coordinates (0,0 = the plate's top-left corner) and dropped into place by
- * `place()`, so a plate can be moved without touching its contents. Plates are kept ≤ ~1250 units wide so they
- * read on a phone without a separate layout.
- */
-interface PlateDef {
-  id: string; plate: number; part: Part; title: string; sub?: string; w: number; h: number;
-  nodes: MapNode[]; edges: Edge[]; bands?: Band[]; captions?: Caption[]; labels?: Label[]; jumps?: JumpView[];
-}
-
-function place(p: PlateDef, x: number, y: number): Scene {
-  const region: Region = { id: p.id, plate: p.plate, part: p.part, title: p.title, sub: p.sub, x, y, w: p.w, h: p.h };
-  return {
-    canvas: { w: x + p.w, h: y + p.h },
-    regions: [region],
-    nodes: p.nodes.map((n) => ({ ...n, x: n.x + x, y: n.y + y })),
-    edges: p.edges.map((e) => (e.via ? { ...e, via: e.via.map(([a, b]) => [a + x, b + y] as [number, number]) } : e)),
-    bands: (p.bands ?? []).map((b) => ({ ...b, x: b.x + x, y: b.y + y })),
-    captions: (p.captions ?? []).map((c) => ({ ...c, x: c.x + x, y: c.y + y })),
-    labels: (p.labels ?? []).map((l) => ({ ...l, x: l.x + x, y: l.y + y })),
-    jumps: (p.jumps ?? []).map((j) => ({ ...j, x: j.x + x, y: j.y + y, plate: p.id })),
-    decor: [],
-  };
-}
+/** Part III (lipid metabolism) plates 9–19, in the final-exam wing to the right of the carbohydrate map. */
 
 // ───────── Plate 9 · dietary fat to the tissues (slides 4–7) ─────────
 const p9: PlateDef = {
@@ -413,14 +390,4 @@ const placed = [
   place(p18, COL_D, 20), place(p19, COL_D, 1500),
 ];
 
-export const lipidScene: Scene = {
-  canvas: { w: Math.max(...placed.map((s) => s.canvas.w)) + 40, h: Math.max(...placed.map((s) => s.canvas.h)) + 40 },
-  nodes: [...placed.flatMap((s) => s.nodes), ...midXrefs],
-  edges: placed.flatMap((s) => s.edges),
-  regions: placed.flatMap((s) => s.regions),
-  bands: placed.flatMap((s) => s.bands),
-  captions: placed.flatMap((s) => s.captions),
-  labels: placed.flatMap((s) => s.labels),
-  jumps: placed.flatMap((s) => s.jumps),
-  decor: [],
-};
+export const lipidScene = combine(placed, midXrefs);

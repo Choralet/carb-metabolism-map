@@ -53,4 +53,12 @@ export const bestPlace = (ps: Place[], scope: Scope) => ps.find((p) => scope ===
 
 export const viewAround = (p: { x: number; y: number }, w = 900, h = 620): View => ({ x: p.x - w / 2, y: p.y - h / 2, w, h });
 
-export const regionView = (r: Region): View => ({ x: r.x - 30, y: r.y - 40, w: r.w + 60, h: r.h + 70 });
+/** Portrait phones get their own layout and camera framing. */
+export const PHONE_QUERY = '(max-width: 720px)';
+
+/**
+ * How to frame a plate: all of it, or on a phone the top of it at reading size (a whole plate on a phone is too small
+ * to read, and the labels switch off).
+ */
+export const regionView = (r: Region, phone = window.matchMedia(PHONE_QUERY).matches): View =>
+  phone ? { x: r.x, y: r.y - 24, w: Math.min(r.w, 620), h: 1160 } : { x: r.x - 30, y: r.y - 40, w: r.w + 60, h: r.h + 70 };

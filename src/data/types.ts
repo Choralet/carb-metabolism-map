@@ -1,4 +1,4 @@
-export type CoKey = 'ATP' | 'NADH' | 'NADPH' | 'FADH2' | 'GTP' | 'CO2' | 'Pi' | 'CoA' | 'UTP' | 'Biotin' | 'B12';
+export type CoKey = 'ATP' | 'NADH' | 'NADPH' | 'FADH2' | 'GTP' | 'CO2' | 'Pi' | 'CoA' | 'UTP' | 'Biotin' | 'B12' | 'PLP' | 'THF';
 export interface CoInfo { id: CoKey; label: string; hint: string }
 
 export type EnzClass =

@@ -22,7 +22,7 @@ const PART_LABEL: Record<string, string> = { I: 'PART I · MIDTERM', II: 'PART I
 /** Below this many screen px per map unit labels are too small to read, so they are hidden (see styles.css). */
 const LOD_FAR = 0.36, LOD_MID = 0.6;
 const lodFor = (pxPerUnit: number) => (pxPerUnit < LOD_FAR ? 'far' : pxPerUnit < LOD_MID ? 'mid' : 'near');
-const MIN_W = 300, MAX_W = 9000;
+const MIN_W = 300;
 
 interface Props {
   scene: Scene;
@@ -42,6 +42,8 @@ interface Props {
 
 export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal }: Props) {
   const { nodeMap, routed, regGeoms, plateOf, bounds, seam } = geometryOf(scene);
+  /** Widest view (map units): enough to see the whole map at once, whichever parts it has. */
+  const MAX_W = Math.max(9000, bounds.both.w + 800);
   const { nodes, edges, regions, bands, captions, labels, decor } = scene;
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);

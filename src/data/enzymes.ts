@@ -1,5 +1,6 @@
 import type { ClassInfo, Enzyme } from './types';
 import { lipidEnzymes } from './part3/enzymes.ts';
+import { aminoEnzymes } from './part4/enzymes.ts';
 
 /** Colours live in styles.css (--k-<id>) so each theme can tune them; every type also has its own marker shape. */
 export const classes: ClassInfo[] = [
@@ -187,7 +188,8 @@ export const enzymes: Enzyme[] = [
   { id: 'aat', name: 'Aspartate aminotransferase', short: 'AST', cls: ['transferase'], ec: '2.6.1.1', rev: null, subs: ['oaa', 'glu'], prods: ['asp', 'akg'],
     text: ['Transaminase of the malate-aspartate shuttle; it appears on both sides of the inner membrane.',
       'Matrix side (step 4): oxaloacetate is first transaminated to aspartate, taking the amino group from glutamate, which becomes α-ketoglutarate.',
-      'Cytosolic side (step 6): the same kind of reaction runs the other way. Aspartate gives its amino group to α-ketoglutarate, so oxaloacetate is regenerated in the cytosol and glutamate is formed.'], slide: P2 + '19' },
+      'Cytosolic side (step 6): the same kind of reaction runs the other way. Aspartate gives its amino group to α-ketoglutarate, so oxaloacetate is regenerated in the cytosol and glutamate is formed.',
+      'Part IV, urea cycle: the same transamination of oxaloacetate with glutamate makes the aspartate that carries the second amino group into the urea cycle, in the matrix and, through the aspartate-argininosuccinate shunt, in the cytosol.'], slide: P2 + '19 · Part IV · slide 15, 18' },
   { id: 'mkt', name: 'Malate-α-ketoglutarate transporter', short: 'Malate–α-KG transporter', cls: ['other'], rev: null,
     text: ['Inner-membrane transporter (step 2) that carries malate across into the matrix.',
       'The slide names it a malate-α-ketoglutarate transporter; α-ketoglutarate is drawn returning to the cytosolic side (as the by-product of matrix transamination), so that leg is shown on this transporter. The slide does not label that leg itself.',
@@ -221,6 +223,7 @@ export const enzymes: Enzyme[] = [
     text: ['Protons can re-enter the matrix only through the proton channel F₀. The proton-motive force driving them back provides the energy for ATP synthesis by the F₁ complex.',
       'This is the chemiosmotic model (Peter Mitchell). About 200 kJ per mole of electron pairs is conserved, more than the ~50 kJ needed per mole of ATP.'], slide: P2 + '24' },
   ...lipidEnzymes,
+  ...aminoEnzymes,
 ];
 
 export const enzById = Object.fromEntries(enzymes.map((e) => [e.id, e])) as Record<string, Enzyme>;

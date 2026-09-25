@@ -1,4 +1,5 @@
 import { lipidReg } from './part3/regulation.ts';
+import { aminoReg } from './part4/regulation.ts';
 
 /**
  * Allosteric regulation and the inhibitor table, taken from the lecture slides.
@@ -141,6 +142,9 @@ export const regBlocks: RegBlock[] = [
 
   // ───────── Part III: fatty acid synthesis vs breakdown ─────────
   ...lipidReg,
+
+  // ───────── Part IV: glutamine synthetase and ATCase ─────────
+  ...aminoReg,
 ];
 
 export const regById = Object.fromEntries(regBlocks.map((r) => [r.id, r])) as Record<string, RegBlock>;

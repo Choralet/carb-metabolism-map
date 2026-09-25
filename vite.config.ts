@@ -34,7 +34,8 @@ export default defineConfig({
         // in the background, so they are cached at runtime the first time someone actually opens the editor.
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         globIgnores: ['**/KetcherModal-*', '**/index.modern-*', '**/lodash-*'],
-        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+        // the structure drawings of all four parts are one ~1.7 MB chunk; leave room for it to grow
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
             // anything under /assets/ that was not precached (i.e. the Ketcher chunks)

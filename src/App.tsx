@@ -11,6 +11,7 @@ import QuizBar from './shell/QuizBar';
 import Search from './shell/Search';
 import TopBar, { type Panel } from './shell/TopBar';
 import { cofactors } from './data/cofactors';
+import { PHONE_QUERY, regionView } from './locate';
 import { MarkIcon } from './map/glyphs';
 import { Rich } from './rich';
 
@@ -18,7 +19,6 @@ import { Rich } from './rich';
 const KetcherModal = lazy(() => import('./KetcherModal'));
 
 /** Portrait phones get their own, narrower layout of the shuttle diagrams. */
-const phoneQuery = '(max-width: 720px)';
 
 /** Per-viewer conveniences only, so a blocked or cleared store just falls back to defaults. */
 const store = {
@@ -33,16 +33,16 @@ function startView(scene: Scene, scope: Scope, phone: boolean): View {
   if (scope === 'final') {
     const first = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV').sort((a, b) => a.plate - b.plate)[0];
     // the top of the first plate at reading size (a whole plate is too tall to read at once)
-    if (first) return phone ? { x: first.x, y: first.y - 24, w: Math.min(first.w, 620), h: 1160 } : { x: first.x - 40, y: first.y - 20, w: 1800, h: 1100 };
+    if (first) return phone ? regionView(first, true) : { x: first.x - 40, y: first.y - 20, w: 1800, h: 1100 };
   }
   // tall on phones, so the fit keeps the top edge near the top of the plate instead of centring on empty desk
   return phone ? { x: 850, y: -24, w: 600, h: 1160 } : { x: 560, y: 0, w: 1020, h: 1120 };
 }
 
 export default function App() {
-  const [phone, setPhone] = useState(() => window.matchMedia(phoneQuery).matches);
+  const [phone, setPhone] = useState(() => window.matchMedia(PHONE_QUERY).matches);
   useEffect(() => {
-    const m = window.matchMedia(phoneQuery);
+    const m = window.matchMedia(PHONE_QUERY);
     const on = () => setPhone(m.matches);
     m.addEventListener('change', on);
     return () => m.removeEventListener('change', on);
