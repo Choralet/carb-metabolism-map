@@ -130,11 +130,21 @@ main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .qchip-btn.on { background: var(--quiz); color: var(--panel); }
 .qb-progress { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); margin-left: 6px; font-variant-numeric: tabular-nums; }
 .qb-progress b { color: var(--ink); }
-.qb-bar { width: 110px; height: 6px; border-radius: 3px; background: var(--hair); overflow: hidden; display: inline-block; }
-.qb-bar i { display: block; height: 100%; background: var(--quiz); transition: width .2s; }
+.qb-bar { width: 110px; height: 6px; border-radius: 3px; background: var(--hair); overflow: hidden; display: inline-flex; }
+.qb-bar i { flex: none; height: 100%; background: var(--ink-3); transition: width .2s; }
+.qb-bar i.ok { background: var(--act); }
+.qb-bar i.miss { background: var(--inh); }
+.qb-n { font-weight: 600; }
+.qb-n.ok { color: var(--act); }
+.qb-n.miss { color: var(--inh); }
+.qb-seg { display: inline-flex; border: 1px solid var(--quiz); border-radius: 999px; overflow: hidden; }
+.qb-seg button { border: 0; background: transparent; color: var(--quiz); padding: 4px 11px; font-weight: 500; }
+.qb-seg button + button { border-left: 1px solid var(--quiz); }
+.qb-seg button.on { background: var(--quiz); color: var(--panel); }
+.qb-seg button:disabled { opacity: .45; }
 .qb-scope { color: var(--ink-3); font-style: italic; font-family: var(--f-serif); }
 .qb-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--hair); background: var(--paper); border-radius: 7px; padding: 4px 10px; }
-.qb-btn:first-of-type { margin-left: auto; }
+.quizbar .qb-btn:nth-last-of-type(2) { margin-left: auto; }
 .qb-btn:hover { border-color: var(--ink-3); }
 
 /* ── canvas & map ────────────────────────────────────────────────── */
@@ -548,3 +558,32 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 .study tbody th { font: 600 13px var(--f-serif); color: var(--ink); width: 34%; }
 .study tbody tr:nth-child(even) td, .study tbody tr:nth-child(even) th { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 .study .foot { font-size: 12px; color: var(--ink-3); margin: 6px 0 0; }
+
+/* ── quiz question card ──────────────────────────────────────────── */
+.quiz-ask { position: fixed; z-index: 40; width: min(350px, calc(100vw - 24px)); background: var(--panel); border: 1px solid var(--quiz); border-radius: 12px; box-shadow: 0 12px 34px rgba(40, 30, 15, .22); padding: 10px 14px 14px; }
+.quiz-ask.sheet { left: 0; right: 0; bottom: 0; width: auto; border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.qa-head { display: flex; align-items: center; justify-content: space-between; }
+.qa-kind { font: 500 10.5px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--quiz); }
+.qa-prompt { font: 600 17px var(--f-serif); margin: 0 0 10px; color: var(--ink); }
+.qa-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.qa-form input { flex: 1 1 180px; min-width: 0; font: 16px var(--f-sans); padding: 8px 10px; border: 1px solid var(--hair); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.qa-form input:focus { outline: 2px solid var(--quiz); outline-offset: 0; border-color: transparent; }
+.qa-btn { border: 1px solid var(--hair); background: var(--paper); border-radius: 8px; padding: 7px 13px; font-weight: 600; color: var(--ink); }
+.qa-btn.primary { background: var(--quiz); border-color: var(--quiz); color: var(--panel); }
+.qa-link { background: none; border: 0; color: var(--ink-3); text-decoration: underline; padding: 4px 2px; font-size: 13px; }
+.qa-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.qa-hint { margin-right: auto; color: var(--ink-3); font: italic 14px var(--f-serif); }
+.qa-result.ok { display: flex; align-items: center; gap: 10px; }
+.qa-result.ok b { color: var(--act); font: 600 13px var(--f-sans); }
+.qa-result.ok b::before { content: '✓ '; }
+.qa-result.ok span { flex: 1; font: 600 16px var(--f-serif); color: var(--ink); }
+.qa-you { margin: 0 0 4px; color: var(--inh); font-size: 13.5px; }
+.qa-you q { font-weight: 600; }
+.qa-answer { margin: 0 0 12px; font: 600 17px var(--f-serif); color: var(--ink); }
+.qa-answer span { font: 500 10.5px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-right: 6px; }
+
+/* answered items on the map, while the quiz is on */
+.elabel.q-ok .ko, .node.q-ok .nbox { stroke: var(--act); stroke-width: 1.3; }
+.elabel.q-miss .ko, .node.q-miss .nbox { fill: var(--inh-bg); stroke: var(--inh); stroke-width: 1.6; }
+.arc.q-ok .tag, .tag.q-ok { fill: var(--act); }
+.arc.q-miss .tag, .tag.q-miss { fill: var(--inh); }

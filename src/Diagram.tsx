@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { cardById } from './data/cards';
 import { enzById } from './data/enzymes';
 import { regBlocks } from './data/regulation';
-import { isHidden, nodeQuizKind, tagKey, type QuizState } from './quiz';
+import { isHidden, nodeQuizKind, resultClass, tagKey, type QuizState } from './quiz';
 import type { CoKey, EnzClass, Edge, Exam, MapNode, Region, Scene, Scope } from './data/types';
 import {
   arcGeom, clip, enzBox, geometryOf, GAP, harpoonPath, HIDDEN_BOX, labelCenter, labelOf, nodeBox, spaced, tagParts, TY,
@@ -38,7 +38,8 @@ interface Props {
   /** First view when the map mounts. */
   start: View;
   quiz: QuizState;
-  onReveal: (key: string) => void;
+  /** A hidden item was clicked: ask about it (the rectangle places the question card). */
+  onReveal: (key: string, at: DOMRect) => void;
   /** A traced route: only its arrows and molecules stay lit, and its arrows are marked like a highlighter pen. */
   route: { edges: Set<string>; nodes: Set<string> } | null;
 }
@@ -207,7 +208,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   const activate = (s: Selection, hiddenKey: string | null) => (ev: React.MouseEvent | React.KeyboardEvent) => {
     ev.stopPropagation();
     if (drag.current?.moved) return;
-    if (hiddenKey) onReveal(hiddenKey); else onSelect(s);
+    if (hiddenKey) onReveal(hiddenKey, (ev.currentTarget as Element).getBoundingClientRect()); else onSelect(s);
   };
   const onKey = (s: Selection, hiddenKey: string | null) => (ev: React.KeyboardEvent) => {
     if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); activate(s, hiddenKey)(ev); }
@@ -410,11 +411,11 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
         else ty = P.y - onLine.h / 2 - 8;
         tag = tagHidden
           ? <QMark key="q" x={anchor === 'start' ? tx + 17 : anchor === 'end' ? tx - 17 : tx} y={ty - 4} k={tagKey(e)} activate={activate} onKey={onKey} />
-          : tagText(parts.plain, tx, ty, anchor, ' lod-near');
+          : tagText(parts.plain, tx, ty, anchor, ` lod-near${resultClass(quiz, tagKey(e))}`);
       } else {
         const a = arcGeom(P, onLine, side, r.dir, { inn: !!parts.inn, out: !!parts.out });
         tag = (
-          <g className="arc lod-near">
+          <g className={`arc lod-near${resultClass(quiz, tagKey(e))}`}>
             <path className="arc-line" d={a.d} markerEnd="url(#ah-arc)" />
             {tagHidden
               ? <QMark x={a.qAnchor === 'start' ? a.q.x + 17 : a.qAnchor === 'end' ? a.q.x - 17 : a.q.x} y={a.q.y - 4} k={tagKey(e)} activate={activate} onKey={onKey} />
@@ -433,7 +434,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       <g key={e.id} className={cls} data-enz={enz?.id}>
         {tag}
         {showLabel && (
-          <g className={`elabel ${paper(e)}${hidden ? ' hidden' : ''}${sel ? ' sel' : ''}${hl ? ' hl' : ''} lod-mid`}
+          <g className={`elabel ${paper(e)}${hidden ? ' hidden' : ''}${sel ? ' sel' : ''}${hl ? ' hl' : ''}${resultClass(quiz, enz!.id)} lod-mid`}
             style={{ '--c': `var(--k-${cls0})` } as React.CSSProperties}
             transform={`translate(${L.x.toFixed(1)},${L.y.toFixed(1)})`}
             onClick={activate(selTarget, hidden ? enz!.id : null)} onKeyDown={onKey(selTarget, hidden ? enz!.id : null)}
@@ -474,7 +475,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       ? { onClick: activate(target, hiddenKey), onKeyDown: onKey(target, hiddenKey), tabIndex: 0, role: 'button' as const, 'aria-label': hidden ? 'Hidden name, click to reveal' : label }
       : {};
     const hw = b.hw - GAP, hh = b.hh - GAP;
-    const cls = `node kind-${kind} ${paper(n)}${on ? '' : ' off'}${inScope(n) ? '' : ' out'}${isSel ? ' selected' : ''}${interactive ? ' clickable' : ''}${hidden ? ' hidden' : ''}`;
+    const cls = `node kind-${kind} ${paper(n)}${on ? '' : ' off'}${inScope(n) ? '' : ' out'}${isSel ? ' selected' : ''}${interactive ? ' clickable' : ''}${hidden ? ' hidden' : ''}${qk ? resultClass(quiz, qKey) : ''}`;
 
     if (kind === 'xref') {
       const t = n.target ? nodeMap[n.target] : undefined;
@@ -509,7 +510,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       return (
         <g key={n.id} className={`${cls} lod-mid`} data-enz={n.enz} data-node={n.id} {...props}>
           {lp && sp && <path className="xref-lead" d={`M${sp.x},${sp.y} L${lp.x},${lp.y}`} />}
-          <g transform={`translate(${n.x},${n.y})`} className={`elabel ${paper(n)}${hidden ? ' hidden' : ''}${isSel ? ' sel' : ''}`}
+          <g transform={`translate(${n.x},${n.y})`} className={`elabel ${paper(n)}${hidden ? ' hidden' : ''}${isSel ? ' sel' : ''}${resultClass(quiz, n.enz!)}`}
             style={{ '--c': `var(--k-${cls0})` } as React.CSSProperties}>
             <rect className="ko framed" x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} rx={3} />
             {hidden

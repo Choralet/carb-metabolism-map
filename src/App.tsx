@@ -4,7 +4,9 @@ import Drawer from './Drawer';
 import { classById, enzById } from './data/enzymes';
 import { desktopScene, phoneScene } from './data/scene';
 import type { CoKey, EnzClass, Exam, Scene, Scope } from './data/types';
-import { allKinds, keysFor, quizKeys, type QuizKind, type QuizState } from './quiz';
+import { allKinds, keyPlates, keysFor, loadQuiz, questionOf, quizKeys, saveQuiz, type Answer, type QuizKind, type QuizSave, type QuizState } from './quiz';
+import QuizAsk from './shell/QuizAsk';
+import type { Where } from './shell/QuizBar';
 import { CloseIcon } from './shell/icons';
 import { Key, LayersPanel, PlatesPanel } from './shell/Panels';
 import QuizBar from './shell/QuizBar';
@@ -68,6 +70,13 @@ function scopeFor(l: Link | null, scene: Scene, scope: Scope): Scope {
     : l.plate ? scene.regions.filter((r) => r.plate === l.plate).map((r) => (r.part === 'III' || r.part === 'IV' ? 'final' : 'mid'))
       : [];
   return exams.length && !exams.includes(scope) ? 'both' : scope;
+}
+
+/** A drawn node for a quiz key: the node itself, an enzyme's first arrow, or a label's arrow. */
+function firstNodeOf(key: string, scene: Scene): string {
+  if (key.startsWith('tag:')) return scene.edges.find((e) => `tag:${e.id}` === key)?.from ?? '';
+  if (geometryOf(scene).nodeMap[key]) return key;
+  return scene.edges.find((e) => e.enz === key)?.from ?? scene.nodes.find((n) => n.enz === key)?.id ?? '';
 }
 
 function titleOf(sel: NonNullable<Selection>, scene: Scene): string {
@@ -180,21 +189,55 @@ export default function App() {
   };
 
   // ── quiz ──────────────────────────────────────────────────────────
+  // Answers persist (progress survives a reload), and so does the deck of missed items, which a later right
+  // answer empties again. Reset only clears the answers in play; the deck is kept.
   const [quizOn, setQuizOn] = useState(false);
   const [kinds, setKinds] = useState<Set<QuizKind>>(new Set(allKinds));
-  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const [where, setWhere] = useState<Where>({ kind: 'scope' });
+  const [save, setSave] = useState<QuizSave>(loadQuiz);
+  useEffect(() => saveQuiz(save), [save]);
+  const [ask, setAsk] = useState<{ key: string; at: DOMRect } | null>(null);
   const keys = useMemo(() => quizKeys(scene, scope), [scene, scope]);
-  const inPlay = useMemo(() => keysFor(keys, kinds), [keys, kinds]);
-  const quiz: QuizState = useMemo(() => ({ on: quizOn, kinds, revealed, pool: new Set(inPlay) }), [quizOn, kinds, revealed, inPlay]);
-  const done = inPlay.filter((k) => revealed.has(k)).length;
-  const reveal = useCallback((key: string) => setRevealed((r) => new Set(r).add(key)), []);
+  const plates = useMemo(() => keyPlates(scene), [scene]);
+  const missedSet = useMemo(() => new Set(save.missed), [save.missed]);
+  const inPlay = useMemo(() => keysFor(keys, kinds).filter((k) =>
+    where.kind === 'plate' ? plates.get(k)?.has(where.plate) : where.kind === 'missed' ? missedSet.has(k) : true), [keys, kinds, where, plates, missedSet]);
+  const quiz: QuizState = useMemo(() => ({ on: quizOn, kinds, pool: new Set(inPlay), answers: save.answers }), [quizOn, kinds, inPlay, save.answers]);
+  const quizCounts = useMemo(() => {
+    const c = { ok: 0, miss: 0, seen: 0, total: inPlay.length };
+    inPlay.forEach((k) => { const a = save.answers[k]; if (a) c[a]++; });
+    return c;
+  }, [inPlay, save.answers]);
+  const missedInScope = useMemo(() => keysFor(keys, kinds).filter((k) => missedSet.has(k)).length, [keys, kinds, missedSet]);
+  const reveal = useCallback((key: string, at: DOMRect) => setAsk({ key, at }), []);
+  const answer = (key: string, a: Answer) => {
+    setSave((s) => ({
+      answers: { ...s.answers, [key]: a },
+      missed: a === 'miss' ? [...new Set([...s.missed, key])] : a === 'ok' ? s.missed.filter((k) => k !== key) : s.missed,
+    }));
+    setAsk(null);
+  };
+  const setAnswers = (keysToSet: string[], a: Answer | null) => setSave((s) => {
+    const answers = { ...s.answers };
+    keysToSet.forEach((k) => { if (a) { if (!answers[k]) answers[k] = a; } else delete answers[k]; });
+    return { ...s, answers };
+  });
+  /** "This plate" takes the plate in the middle of the screen at the moment it is chosen. */
+  const chooseWhere = (w: 'scope' | 'plate' | 'missed') => {
+    if (w !== 'plate') { setWhere({ kind: w }); return; }
+    const v = currentView();
+    const cx = v ? v.x + v.w / 2 : 0, cy = v ? v.y + v.h / 2 : 0;
+    const r = scene.regions.find((x) => cx >= x.x && cx <= x.x + x.w && cy >= x.y && cy <= x.y + x.h)
+      ?? [...scene.regions].sort((a, b) => Math.hypot(a.x + a.w / 2 - cx, a.y + a.h / 2 - cy) - Math.hypot(b.x + b.w / 2 - cx, b.y + b.h / 2 - cy))[0];
+    if (r) setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
+  };
   // any combination, but never none: with nothing hidden there is nothing to quiz
   const toggleKind = (k: QuizKind) => setKinds((prev) => {
     const next = new Set(prev);
     if (next.has(k)) { if (next.size > 1) next.delete(k); } else next.add(k);
     return next;
   });
-  const toggleQuiz = () => { setQuizOn((v) => !v); setRevealed(new Set()); closeDrawer(); setRouteEnds(null); };
+  const toggleQuiz = () => { setQuizOn((v) => !v); setAsk(null); closeDrawer(); setRouteEnds(null); };
 
   // ── highlight counts (within scope) ───────────────────────────────
   const counts = useMemo(() => {
@@ -251,8 +294,8 @@ export default function App() {
           highlights={highlights} />
       )}
       {chrome && quizOn && (
-        <QuizBar kinds={kinds} onKind={toggleKind} done={done} total={inPlay.length} scopeNote={scopeNote}
-          onRevealAll={() => setRevealed(new Set(inPlay))} onReset={() => setRevealed(new Set())} />
+        <QuizBar kinds={kinds} onKind={toggleKind} where={where} onWhere={chooseWhere} counts={quizCounts} missedDeck={missedInScope} scopeNote={scopeNote}
+          onRevealAll={() => setAnswers(inPlay, 'seen')} onReset={() => setAnswers(inPlay, null)} />
       )}
 
       <main>
@@ -300,6 +343,10 @@ export default function App() {
       </main>
 
       {searching && <Search scene={scene} scope={scope} onClose={() => setSearching(false)} onPick={pick} />}
+      {ask && quizOn && (
+        <QuizAsk key={ask.key} q={questionOf(ask.key, scene)} plate={geometryOf(scene).plateOf.get(firstNodeOf(ask.key, scene))?.plate} at={ask.at} phone={phone}
+          onAnswer={(a) => answer(ask.key, a)} onClose={() => setAsk(null)} />
+      )}
       {routePick && (
         <Search scene={scene} scope={scope} onClose={() => setRoutePick(null)} onPick={pick}
           pickMolecule={{
