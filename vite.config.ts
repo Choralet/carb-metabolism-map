@@ -13,15 +13,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Carbohydrate metabolism map',
-        short_name: 'Carb Map',
-        description: 'Interactive carbohydrate metabolism pathway map with enzyme filters and quiz mode',
+        name: 'Metabolism Atlas',
+        short_name: 'Atlas',
+        description: 'Interactive metabolism atlas for 2310380: carbohydrates (midterm), lipids and N-containing compounds (final), with search, highlights and quiz mode',
         start_url: '.',
         scope: '.',
         display: 'standalone',
         orientation: 'any',
-        background_color: '#f8fafc',
-        theme_color: '#0f766e',
+        background_color: '#e6decf',
+        theme_color: '#fcf9f3',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -34,7 +34,8 @@ export default defineConfig({
         // in the background, so they are cached at runtime the first time someone actually opens the editor.
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         globIgnores: ['**/KetcherModal-*', '**/index.modern-*', '**/lodash-*'],
-        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+        // the structure drawings of all four parts are one ~1.7 MB chunk; leave room for it to grow
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
             // anything under /assets/ that was not precached (i.e. the Ketcher chunks)

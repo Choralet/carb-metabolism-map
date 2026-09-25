@@ -11,11 +11,31 @@ const indigo = await require('indigo-ketcher').default();
 
 const opts = (o) => { const m = new indigo.MapStringString(); for (const [k, v] of Object.entries(o)) m.set(k, v); return m; };
 
-/** Scale the SVG's intrinsic size so thumbnails read well; CSS caps it at the card width. */
-function enlarge(svg, factor = 1.6) {
+/**
+ * Set the SVG's intrinsic size. Indigo draws every molecule at one scale (atom labels ~28 units tall), and CSS only
+ * ever shrinks a drawing to fit its card. At 0.5 a label is at most ~14 px, so a lone ion such as NH₄⁺ is not blown
+ * up to fill the card while larger molecules still shrink to fit.
+ */
+function enlarge(svg, factor = 0.5) {
   return svg.replace(/<svg\b[^>]*>/, (tag) =>
     tag.replace(/\b(width|height)="([\d.]+)(px)?"/g, (_, k, v) => `${k}="${+(parseFloat(v) * factor).toFixed(2)}"`));
 }
+
+/**
+ * Indigo writes numbers to six decimals and pretty-prints; trimming them shrinks the file (it is precached for
+ * offline use, which has a size cap). The glyph outlines in <defs> are in plain units, where one decimal is far below
+ * a pixel. Bonds are drawn in a ×100 scaled system (`transform="matrix(100, …)"`): their 0.03 stroke widths and
+ * coordinates keep three decimals, since one would zero the strokes and shift bonds by several units.
+ */
+const round = (s, places) => s.replace(new RegExp(`(\\d+\\.\\d{${places}})\\d+`, 'g'), '$1');
+const compact = (svg) => {
+  const i = svg.indexOf('</defs>');
+  return (i < 0 ? round(svg, 3) : round(svg.slice(0, i), 1) + round(svg.slice(i), 3))
+  .replace(/>\s+</g, '><')
+  .replaceAll('rgb(0%, 0%, 0%)', '#000')
+  // every glyph is wrapped in its own <g fill=… fill-opacity="1">; the colour can sit on the <use> itself
+  .replace(/<g fill="([^"]+)" fill-opacity="1">(<use )([^>]*\/>)<\/g>/g, '$2fill="$1" $3');
+};
 
 /**
  * Indigo returns the SVG base64-encoded. Its text is drawn from glyph <symbol>/<clipPath> ids that repeat in every
@@ -36,7 +56,7 @@ for (const m of molecules) {
   // Render the SMILES directly: Indigo lays it out itself and keeps the wedge/hash stereo bonds. Going through a
   // molfile loses them (no coordinates to hang them on). 'render-stereo-style: none' only drops the "Chiral" caption.
   const svg = indigo.render(m.smiles, opts({ 'render-output-format': 'svg', 'render-stereo-style': 'none' }));
-  out[m.id] = enlarge(decode(String(svg), m.id));
+  out[m.id] = compact(enlarge(decode(String(svg), m.id)));
 }
 
 writeFileSync(new URL('../src/data/structures.json', import.meta.url), JSON.stringify(out));
