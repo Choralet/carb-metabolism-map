@@ -1,25 +1,43 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Diagram, { type Selection, type View } from './Diagram';
 import Drawer from './Drawer';
-import { classes, enzymes } from './data/enzymes';
+import { classById, enzById } from './data/enzymes';
+import { desktopScene, phoneScene } from './data/scene';
+import type { CoKey, EnzClass, Exam, Scene, Scope } from './data/types';
+import { regionView } from './locate';
+import { allKinds, keysFor, quizKeys, type QuizKind, type QuizState } from './quiz';
+import { CloseIcon } from './shell/icons';
+import { Key, LayersPanel, PlatesPanel } from './shell/Panels';
+import QuizBar from './shell/QuizBar';
+import Search from './shell/Search';
+import TopBar, { type Panel } from './shell/TopBar';
 import { cofactors } from './data/cofactors';
-import { desktopScene, edges, phoneScene } from './data/layout';
-import { allKinds, keysFor, type QuizKind, type QuizState } from './quiz';
-import type { CoKey, EnzClass } from './data/types';
+import { MarkIcon } from './map/glyphs';
+import { Rich } from './rich';
 
 // Ketcher (+ the Indigo engine) is ~29 MB, so it is only fetched when someone presses "Edit in Ketcher"
 const KetcherModal = lazy(() => import('./KetcherModal'));
 
-const start: View = { x: 560, y: 0, w: 1020, h: 1120 };
-
-const kindChips: { id: QuizKind; label: string; hint: string }[] = [
-  { id: 'enz', label: 'Enzymes', hint: 'Hide every enzyme name' },
-  { id: 'met', label: 'Metabolites', hint: 'Hide every metabolite name (substrates and products)' },
-  { id: 'tag', label: 'Cofactors & products', hint: 'Hide the labels on the arrows, such as ATP → ADP or − H₂O' },
-];
-
 /** Portrait phones get their own, narrower layout of the shuttle diagrams. */
 const phoneQuery = '(max-width: 720px)';
+
+/** Per-viewer conveniences only, so a blocked or cleared store just falls back to defaults. */
+const store = {
+  get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
+};
+
+const inScope = (x: { exam?: Exam }, s: Scope) => s === 'both' || (x.exam ?? 'mid') === s;
+
+/** Where the camera starts for a scope: the top of glycolysis, or the first final plate. */
+function startView(scene: Scene, scope: Scope, phone: boolean): View {
+  if (scope === 'final') {
+    const first = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV').sort((a, b) => a.plate - b.plate)[0];
+    if (first) return phone ? { x: first.x, y: first.y - 30, w: Math.min(first.w, 620), h: 900 } : regionView(first);
+  }
+  // tall on phones, so the fit keeps the top edge near the top of the plate instead of centring on empty desk
+  return phone ? { x: 850, y: -24, w: 600, h: 1160 } : { x: 560, y: 0, w: 1020, h: 1120 };
+}
 
 export default function App() {
   const [phone, setPhone] = useState(() => window.matchMedia(phoneQuery).matches);
@@ -30,145 +48,155 @@ export default function App() {
     return () => m.removeEventListener('change', on);
   }, []);
   const scene = phone ? phoneScene : desktopScene;
+
+  const [scope, setScope] = useState<Scope>(() => {
+    const s = store.get('atlas-scope');
+    return s === 'mid' || s === 'final' || s === 'both' ? s : 'both';
+  });
+  const [dark, setDark] = useState(() => document.documentElement.dataset.theme === 'dark');
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#1c1916' : '#fcf9f3');
+  }, [dark]);
+
   const [filter, setFilter] = useState<Set<EnzClass>>(new Set());
-  const [selection, setSelection] = useState<Selection>(null);
-  const [focus, setFocus] = useState<{ view: View; n: number }>({ view: start, n: 0 });
-  const [editing, setEditing] = useState<{ title: string; smiles: string } | null>(null);
-  const [everEdited, setEverEdited] = useState(false);
-  const [quiz, setQuiz] = useState<QuizState>({ on: false, kinds: new Set(allKinds), revealed: new Set() });
   const [co, setCo] = useState<Set<CoKey>>(new Set());
   const [showReg, setShowReg] = useState(false);
-  // per-viewer convenience only, so a blocked/cleared store just falls back to open
-  const [barOpen, setBarOpen] = useState(() => { try { return localStorage.getItem('carbmap-bar') !== '0'; } catch { return true; } });
-  useEffect(() => { try { localStorage.setItem('carbmap-bar', barOpen ? '1' : '0'); } catch { /* ignore */ } }, [barOpen]);
+  const [selection, setSelection] = useState<Selection>(null);
+  const [start] = useState(() => startView(scene, scope, phone));
+  const [focus, setFocus] = useState<{ view: View; n: number }>({ view: start, n: 0 });
+  const [panel, setPanel] = useState<Panel>(null);
+  const [searching, setSearching] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(() => store.get('atlas-key') === '1');
+  const [chrome, setChrome] = useState(true);
+  const [editing, setEditing] = useState<{ title: string; smiles: string } | null>(null);
+  const [everEdited, setEverEdited] = useState(false);
 
-  // H toggles the toolbar. Capture phase: Ketcher binds global single-letter shortcuts and
-  // calls stopImmediatePropagation, so a bubble-phase listener would never see the key.
-  // We never stop propagation ourselves, so Ketcher keeps working inside its modal.
+  const go = useCallback((view: View) => setFocus((f) => ({ view, n: f.n + 1 })), []);
+
+  const changeScope = (s: Scope) => {
+    setScope(s);
+    store.set('atlas-scope', s);
+    // follow the material: Final flies to the final wing, Midterm back to the carbohydrate map
+    if (s !== 'both') go(startView(scene, s, phone));
+  };
+
+  // ── quiz ──────────────────────────────────────────────────────────
+  const [quizOn, setQuizOn] = useState(false);
+  const [kinds, setKinds] = useState<Set<QuizKind>>(new Set(allKinds));
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const keys = useMemo(() => quizKeys(scene, scope), [scene, scope]);
+  const inPlay = useMemo(() => keysFor(keys, kinds), [keys, kinds]);
+  const quiz: QuizState = useMemo(() => ({ on: quizOn, kinds, revealed, pool: new Set(inPlay) }), [quizOn, kinds, revealed, inPlay]);
+  const done = inPlay.filter((k) => revealed.has(k)).length;
+  const reveal = useCallback((key: string) => setRevealed((r) => new Set(r).add(key)), []);
+  // any combination, but never none: with nothing hidden there is nothing to quiz
+  const toggleKind = (k: QuizKind) => setKinds((prev) => {
+    const next = new Set(prev);
+    if (next.has(k)) { if (next.size > 1) next.delete(k); } else next.add(k);
+    return next;
+  });
+  const toggleQuiz = () => { setQuizOn((v) => !v); setRevealed(new Set()); setSelection(null); };
+
+  // ── highlight counts (within scope) ───────────────────────────────
+  const counts = useMemo(() => {
+    const m: Record<string, number> = {};
+    const seen = new Set<string>();
+    scene.edges.forEach((e) => {
+      if (!e.enz || seen.has(e.enz) || !inScope(e, scope)) return;
+      seen.add(e.enz);
+      enzById[e.enz].cls.forEach((c) => { m[c] = (m[c] ?? 0) + 1; });
+    });
+    return m;
+  }, [scene, scope]);
+  const coCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    scene.edges.forEach((e) => { if (inScope(e, scope)) e.co?.forEach((c) => { m[c] = (m[c] ?? 0) + 1; }); });
+    return m;
+  }, [scene, scope]);
+  const toggle = (c: EnzClass) => setFilter((f) => { const n = new Set(f); if (n.has(c)) n.delete(c); else n.add(c); return n; });
+  const toggleCo = (c: CoKey) => setCo((f) => { const n = new Set(f); if (n.has(c)) n.delete(c); else n.add(c); return n; });
+  const clearHighlights = () => { setFilter(new Set()); setCo(new Set()); };
+
+  // ── keyboard: / or Ctrl-K search, H hides the chrome ──────────────
+  // Capture phase: Ketcher binds global single-letter shortcuts and stops propagation, so a bubble-phase listener
+  // would miss them. We never stop propagation ourselves, so Ketcher keeps working inside its modal.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'h' && e.key !== 'H') return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
-      // the Ketcher editor owns its keys while it is open
       if (t?.closest('.modal')) return;
-      if (t?.closest('input, textarea, [contenteditable="true"]')) return;
-      setBarOpen((v) => !v);
+      const typing = !!t?.closest('input, textarea, select, [contenteditable="true"]');
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); setSearching(true); return; }
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '/') { e.preventDefault(); setSearching(true); }
+      else if (e.key === 'h' || e.key === 'H') setChrome((v) => !v);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
-  const toggle = (c: EnzClass) => setFilter((f) => { const n = new Set(f); n.has(c) ? n.delete(c) : n.add(c); return n; });
-  const toggleCo = (c: CoKey) => setCo((f) => { const n = new Set(f); n.has(c) ? n.delete(c) : n.add(c); return n; });
+  const pick = (sel: Selection, view: View) => {
+    setSearching(false);
+    setPanel(null);
+    go(view);
+    if (sel) setSelection(sel);
+  };
 
-  const counts = useMemo(() => {
-    const m: Record<string, number> = {};
-    const seen = new Set<string>();
-    edges.forEach((e) => { if (e.enz && !seen.has(e.enz)) { seen.add(e.enz); enzymes.find((z) => z.id === e.enz)!.cls.forEach((c) => { m[c] = (m[c] ?? 0) + 1; }); } });
-    return m;
-  }, []);
-
-  const coCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    edges.forEach((e) => e.co?.forEach((c) => { m[c] = (m[c] ?? 0) + 1; }));
-    return m;
-  }, []);
-
-  const inPlay = useMemo(() => keysFor(quiz.kinds), [quiz.kinds]);
-  const done = inPlay.filter((k) => quiz.revealed.has(k)).length;
-
-  const reveal = useCallback((key: string) => setQuiz((q) => ({ ...q, revealed: new Set(q.revealed).add(key) })), []);
-  // any combination, but never none: with nothing hidden there is nothing to quiz
-  const toggleKind = (k: QuizKind) => setQuiz((q) => {
-    const kinds = new Set(q.kinds);
-    if (kinds.has(k)) { if (kinds.size > 1) kinds.delete(k); } else kinds.add(k);
-    return { ...q, kinds };
-  });
-  const startQuiz = (on: boolean) => { setQuiz((q) => ({ ...q, on, revealed: new Set() })); setSelection(null); };
+  const scopeNote = scope === 'both' ? 'all plates' : scope === 'final' ? 'final plates only' : 'midterm plates only';
+  const highlights = filter.size + co.size;
 
   return (
-    <div className="app">
-      <header className={barOpen ? '' : 'slim'}>
-        <div className="title">
-          <h1>Carbohydrate metabolism map</h1>
-          {barOpen && <p>Click any enzyme, molecule or <span className="i-inline">i</span> card for details. Scroll to zoom, drag to pan.</p>}
-          <button className={`reg-toggle${showReg ? ' on' : ''}`} onClick={() => setShowReg((v) => !v)} aria-pressed={showReg}>
-            Regulation {showReg ? 'on' : 'off'}
-          </button>
-          <button className={`quiz-toggle${quiz.on ? ' on' : ''}`} onClick={() => startQuiz(!quiz.on)} aria-pressed={quiz.on}>
-            {quiz.on ? 'Exit quiz mode' : 'Quiz mode'}
-          </button>
-          <button className="bar-toggle" onClick={() => setBarOpen((v) => !v)} aria-expanded={barOpen}
-            title={`${barOpen ? 'Hide' : 'Show'} the toolbar (H)`} aria-label={`${barOpen ? 'Hide' : 'Show'} the toolbar`}>
-            {barOpen ? '⌃ Hide toolbar' : '⌄ Show toolbar'}
-          </button>
-        </div>
-
-        {barOpen && (quiz.on ? (
-          <div className="quizbar" role="group" aria-label="Quiz controls">
-            <span className="label">Hide</span>
-            {kindChips.map((k) => (
-              <button key={k.id} className={`chip quiz${quiz.kinds.has(k.id) ? ' on' : ''}`} onClick={() => toggleKind(k.id)} title={k.hint} aria-pressed={quiz.kinds.has(k.id)}>
-                {k.label}
-              </button>
-            ))}
-            <span className="progress" aria-live="polite">
-              <b>{done}</b> of <b>{inPlay.length}</b> revealed
-              <span className="bar"><i style={{ width: `${inPlay.length ? (done / inPlay.length) * 100 : 0}%` }} /></span>
-            </span>
-            <button className="ghost" onClick={() => setQuiz((q) => ({ ...q, revealed: new Set(inPlay) }))}>Reveal all</button>
-            <button className="ghost" onClick={() => setQuiz((q) => ({ ...q, revealed: new Set() }))}>Reset</button>
-            <span className="hint">Click a <b>?</b> to reveal it; click again for details.</span>
-          </div>
-        ) : (
-          <div className="filter" role="group" aria-label="Filter by enzyme type">
-            <span className="label">Enzyme type</span>
-            {classes.map((c) => (
-              <button key={c.id} className={`chip${filter.has(c.id) ? ' on' : ''}`} style={{ '--c': c.color } as React.CSSProperties}
-                onClick={() => toggle(c.id)} title={c.hint} aria-pressed={filter.has(c.id)}>
-                <i /> {c.label} <b>{counts[c.id] ?? 0}</b>
-              </button>
-            ))}
-            <span className="sep" />
-            <span className="label">Cofactor</span>
-            {cofactors.map((c) => (
-              <button key={c.id} className={`chip co${co.has(c.id) ? ' on' : ''}`} onClick={() => toggleCo(c.id)} title={c.hint} aria-pressed={co.has(c.id)}>
-                {c.label} <b>{coCounts[c.id] ?? 0}</b>
-              </button>
-            ))}
-            {(filter.size > 0 || co.size > 0) && <button className="reset" onClick={() => { setFilter(new Set()); setCo(new Set()); }}>Clear</button>}
-          </div>
-        ))}
-
-        {barOpen && (
-          <nav className="jumps" aria-label="Jump to section">
-            <span className="label">Go to</span>
-            {scene.jumps.map((j) => (
-              <button key={j.id} onClick={() => setFocus((f) => ({ view: j, n: f.n + 1 }))}>{j.label}</button>
-            ))}
-          </nav>
-        )}
-      </header>
+    <div className={`app${chrome ? '' : ' bare'}`}>
+      {chrome && (
+        <TopBar scope={scope} onScope={changeScope} onSearch={() => setSearching(true)} panel={panel} onPanel={setPanel}
+          quizOn={quizOn} onQuiz={toggleQuiz} dark={dark} onTheme={() => { setDark((d) => { store.set('atlas-theme', d ? 'light' : 'dark'); return !d; }); }}
+          highlights={highlights} />
+      )}
+      {chrome && quizOn && (
+        <QuizBar kinds={kinds} onKind={toggleKind} done={done} total={inPlay.length} scopeNote={scopeNote}
+          onRevealAll={() => setRevealed(new Set(inPlay))} onReset={() => setRevealed(new Set())} />
+      )}
 
       <main>
-        <Diagram scene={scene} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={setSelection} focus={focus} quiz={quiz} onReveal={reveal} />
+        <Diagram scene={scene} scope={scope} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={setSelection}
+          focus={focus} start={start} quiz={quiz} onReveal={reveal} />
 
-        <div className="legend" aria-label="Legend">
-          <div><svg width="46" height="12"><path d="M2,6 H38" stroke="#475569" strokeWidth="4.5" /><path d="M36,1 L45,6 L36,11z" fill="#475569" /></svg> irreversible</div>
-          <div><svg width="46" height="12"><path d="M9,6 H37" stroke="#475569" strokeWidth="2.6" /><path d="M10,1 L1,6 L10,11z M36,1 L45,6 L36,11z" fill="#475569" /></svg> reversible</div>
-          <div><svg width="46" height="12"><path d="M2,6 H38" stroke="#475569" strokeWidth="2.6" strokeDasharray="8 5" /><path d="M36,1 L45,6 L36,11z" fill="#475569" /></svg> gluconeogenic bypass</div>
-          <div className="pill-key">enzyme colour = type</div>
-          {showReg && (
-            <>
-              <div><svg width="46" height="12"><path d="M2,6 H36" stroke="#dc2626" strokeWidth="2" strokeDasharray="4 3" /><path d="M38,1 V11" stroke="#dc2626" strokeWidth="3" /></svg> inhibits</div>
-              <div><svg width="46" height="12"><path d="M2,6 H34" stroke="#16a34a" strokeWidth="2" strokeDasharray="4 3" /><circle cx="38" cy="6" r="4" fill="#16a34a" /></svg> activates</div>
-            </>
-          )}
-        </div>
+        {highlights > 0 && (
+          <div className="hl-bar" role="status">
+            <span className="hl-label">Highlighting</span>
+            {[...filter].map((c) => (
+              <button key={c} className="hl-chip" style={{ '--c': `var(--k-${c})` } as React.CSSProperties} onClick={() => toggle(c)} aria-label={`Stop highlighting ${classById[c].label}`}>
+                <MarkIcon cls={c} /> {classById[c].label} <CloseIcon />
+              </button>
+            ))}
+            {[...co].map((c) => (
+              <button key={c} className="hl-chip co" onClick={() => toggleCo(c)} aria-label={`Stop highlighting ${c}`}>
+                <span><Rich s={cofactors.find((x) => x.id === c)!.label} /></span> <CloseIcon />
+              </button>
+            ))}
+            <button className="text-btn" onClick={clearHighlights}>Clear</button>
+          </div>
+        )}
 
-        {selection && <Drawer selection={selection} onClose={() => setSelection(null)} onSelect={setSelection} onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} />}
+        <Key open={keyOpen} onToggle={() => setKeyOpen((v) => { store.set('atlas-key', v ? '0' : '1'); return !v; })} showReg={showReg} />
+
+        {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onClose={() => setPanel(null)} />}
+        {panel === 'layers' && (
+          <LayersPanel counts={counts} coCounts={coCounts} filter={filter} onToggle={toggle} co={co} onToggleCo={toggleCo}
+            showReg={showReg} onReg={setShowReg} onClear={clearHighlights} onClose={() => setPanel(null)} />
+        )}
+
+        {selection && (
+          <Drawer selection={selection} scene={scene} scope={scope} onClose={() => setSelection(null)} onSelect={setSelection} onGo={go}
+            onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} />
+        )}
+
+        {!chrome && (
+          <button className="chrome-back" onClick={() => setChrome(true)} title="Show the toolbar (H)">Show toolbar</button>
+        )}
       </main>
+
+      {searching && <Search scene={scene} scope={scope} onClose={() => setSearching(false)} onPick={pick} />}
 
       {/* once opened, the editor stays mounted (hidden) — see KetcherModal */}
       {everEdited && (

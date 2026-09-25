@@ -1,212 +1,68 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { decor } from './data/layout';
-import { classById, enzById } from './data/enzymes';
-import { molById } from './data/molecules';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { enzById } from './data/enzymes';
 import { regBlocks } from './data/regulation';
-import type { RegBlock } from './data/regulation';
 import { isHidden, nodeQuizKind, tagKey, type QuizState } from './quiz';
-import type { CoKey, EnzClass, Edge, MapNode, Scene } from './data/types';
+import type { CoKey, EnzClass, Edge, Exam, MapNode, Region, Scene, Scope } from './data/types';
+import {
+  arcGeom, clip, enzBox, geometryOf, GAP, harpoonPath, HIDDEN_BOX, labelCenter, labelOf, nodeBox, spaced, tagParts, TY,
+  type Anchor, type Box, type P,
+} from './map/geometry';
+import { ClassMark, InfoGlyph, RegSym } from './map/glyphs';
+import { SvgLines, Tspans } from './rich';
+import { measure } from './text';
 
 export type Selection = { kind: 'enz' | 'node' | 'card' | 'reg'; id: string } | null;
 export interface View { x: number; y: number; w: number; h: number }
 
-// ── labels ────────────────────────────────────────────────────────
-/** Molecule nodes inherit the full name from molecules.ts; `label` is only an override. */
-const labelOf = (n: MapNode): string => n.label ?? (n.mol ? molById[n.mol].name : n.id);
-/** Enzymes show their full name on the map; `full` drops the parenthetical in `name`. */
-const enzLabel = (id: string): string => enzById[id].full ?? enzById[id].name;
-
-// ── text measuring & wrapping ─────────────────────────────────────
-let ctx: CanvasRenderingContext2D | null = null;
-const mcache = new Map<string, number>();
-function measure(text: string, size: number, weight = 500): number {
-  const key = `${weight}|${size}|${text}`;
-  const hit = mcache.get(key);
-  if (hit !== undefined) return hit;
-  ctx ??= document.createElement('canvas').getContext('2d');
-  let w = text.length * size * 0.58;
-  if (ctx) { ctx.font = `${weight} ${size}px system-ui, -apple-system, "Segoe UI", sans-serif`; w = ctx.measureText(text).width; }
-  mcache.set(key, w);
-  return w;
-}
-
-const PILL_MAX = 152;
-const TAGQ_W = 34, TAGQ_H = 24; // the "?" that stands in for a hidden reaction label
-const LINE_H = 14;
-const wcache = new Map<string, string[]>();
-
-/** Greedy wrap so a full enzyme name fits its pill in at most a few lines. */
-function wrapText(text: string, size: number, weight: number, max: number): string[] {
-  const key = `${weight}|${size}|${max}|${text}`;
-  const hit = wcache.get(key);
-  if (hit) return hit;
-  const lines: string[] = [];
-  let cur = '';
-  for (const word of text.split(' ')) {
-    const next = cur ? `${cur} ${word}` : word;
-    if (cur && measure(next, size, weight) > max) { lines.push(cur); cur = word; } else cur = next;
-  }
-  if (cur) lines.push(cur);
-  wcache.set(key, lines);
-  return lines;
-}
-
-interface PillBox { lines: string[]; w: number; h: number }
-function pillBox(text: string): PillBox {
-  const lines = wrapText(text, 12, 700, PILL_MAX);
-  return { lines, w: Math.max(...lines.map((l) => measure(l, 12, 700))) + 18, h: lines.length * LINE_H + 8 };
-}
-
-/** Multi-line pill text, vertically centred on the pill. */
-function PillText({ lines }: { lines: string[] }) {
-  const top = -((lines.length - 1) * LINE_H) / 2 + 4.2;
-  return (
-    <text textAnchor="middle">
-      {lines.map((l, i) => <tspan key={i} x={0} y={top + i * LINE_H}>{l}</tspan>)}
-    </text>
-  );
-}
-
-// ── geometry ──────────────────────────────────────────────────────
-type P = { x: number; y: number };
-interface Box { c: P; hw: number; hh: number }
-const GAP = 4;
-
-function nodeBox(n: MapNode): Box {
-  const label = labelOf(n);
-  switch (n.kind ?? 'met') {
-    case 'cx': return { c: n, hw: (n.w ?? 84) / 2 + GAP, hh: 45 + GAP };
-    case 'card': return { c: n, hw: (measure(label, 12.5, 600) + 44) / 2 + GAP, hh: 14 + GAP };
-    case 'proc': return { c: n, hw: (measure(label, 13, 600) + 28) / 2 + GAP, hh: 18 + GAP };
-    case 'small': return { c: n, hw: Math.max(44, measure(label, 13, 600) + 22) / 2 + GAP, hh: 13 + GAP };
-    case 'etag': { const b = pillBox(enzLabel(n.enz!)); return { c: n, hw: b.w / 2 + GAP, hh: b.h / 2 + GAP }; }
-    default: return { c: n, hw: Math.max(90, measure(label, 15, 600) + 28) / 2 + GAP, hh: 17 + GAP };
-  }
-}
-
-function clip(b: Box, s: P, toward: P): P {
-  const dx = toward.x - s.x, dy = toward.y - s.y;
-  let t = Infinity;
-  if (dx > 0) t = Math.min(t, (b.c.x + b.hw - s.x) / dx); else if (dx < 0) t = Math.min(t, (b.c.x - b.hw - s.x) / dx);
-  if (dy > 0) t = Math.min(t, (b.c.y + b.hh - s.y) / dy); else if (dy < 0) t = Math.min(t, (b.c.y - b.hh - s.y) / dy);
-  if (!isFinite(t) || t < 0) t = 0;
-  return { x: s.x + dx * t, y: s.y + dy * t };
-}
-
-interface Routed { pts: P[]; mid: P }
-
-function along(pts: P[], t: number): P {
-  const segs = pts.slice(1).map((p, i) => Math.hypot(p.x - pts[i].x, p.y - pts[i].y));
-  let target = segs.reduce((a, b) => a + b, 0) * t;
-  for (let i = 0; i < segs.length; i++) {
-    if (target <= segs[i] || i === segs.length - 1) {
-      const f = segs[i] === 0 ? 0 : Math.min(1, target / segs[i]);
-      return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * f, y: pts[i].y + (pts[i + 1].y - pts[i].y) * f };
-    }
-    target -= segs[i];
-  }
-  return pts[0];
-}
-
-type NodeMap = Record<string, MapNode>;
-
-function route(e: Edge, nodeMap: NodeMap): Routed {
-  const A = nodeBox(nodeMap[e.from]), B = nodeBox(nodeMap[e.to]);
-  let pts: P[];
-  if (e.via) pts = [A.c, ...e.via.map(([x, y]) => ({ x, y })), B.c];
-  else {
-    let s = { ...A.c }, t = { ...B.c };
-    if (e.off) {
-      const dx = t.x - s.x, dy = t.y - s.y, L = Math.hypot(dx, dy) || 1;
-      let nx = dy / L, ny = -dx / L;
-      if (nx < -1e-6 || (Math.abs(nx) < 1e-6 && ny < 0)) { nx = -nx; ny = -ny; }
-      s = { x: s.x + nx * e.off, y: s.y + ny * e.off }; t = { x: t.x + nx * e.off, y: t.y + ny * e.off };
-    }
-    pts = [s, t];
-  }
-  pts = pts.slice();
-  pts[0] = clip(A, pts[0], pts[1]);
-  pts[pts.length - 1] = clip(B, pts[pts.length - 1], pts[pts.length - 2]);
-  return { pts, mid: along(pts, e.t ?? 0.5) };
-}
-
-
-// ── regulation blocks ─────────────────────────────────────────────
-interface RegRow { sym: string; lines: string[]; w: number; h: number; kind: 'act' | 'inh' }
-interface RegGeom { rows: RegRow[]; w: number; h: number; c: P; anchor: P }
-
-const REG_MAX = 196;
-
-function regGeom(r: RegBlock, nodeMap: NodeMap, routed: Map<string, Routed>): RegGeom {
-  const rows: RegRow[] = [];
-  const add = (kind: 'act' | 'inh', text: string) => {
-    const lines = wrapText(text, 12, 600, REG_MAX);
-    rows.push({ sym: kind === 'act' ? '\u2295' : '\u2296', lines, kind,
-      w: Math.max(...lines.map((l) => measure(l, 12, 600))) + 42, h: lines.length * 13 + 11 });
-  };
-  if (r.act) add('act', r.act);
-  if (r.inh) add('inh', r.inh);
-  const anchor: P = 'edge' in r.anchor ? routed.get(r.anchor.edge)!.mid : { x: nodeMap[r.anchor.node].x, y: nodeMap[r.anchor.node].y };
-  return {
-    rows,
-    w: Math.max(...rows.map((x) => x.w)),
-    h: rows.reduce((a, b) => a + b.h, 0) + (rows.length - 1) * 5,
-    c: { x: anchor.x + r.dx, y: anchor.y + r.dy },
-    anchor,
-  };
-}
-
-/** Node lookup, routed edges and regulation blocks for one scene; computed once per scene. */
-interface Geometry { nodeMap: NodeMap; routed: Map<string, Routed>; regGeoms: Map<string, RegGeom> }
-const geometries = new WeakMap<Scene, Geometry>();
-function geometryOf(scene: Scene): Geometry {
-  let g = geometries.get(scene);
-  if (!g) {
-    const nodeMap: NodeMap = Object.fromEntries(scene.nodes.map((n) => [n.id, n]));
-    const routed = new Map(scene.edges.map((e) => [e.id, route(e, nodeMap)]));
-    g = { nodeMap, routed, regGeoms: new Map(regBlocks.map((r) => [r.id, regGeom(r, nodeMap, routed)])) };
-    geometries.set(scene, g);
-  }
-  return g;
-}
-
-// ── helpers ───────────────────────────────────────────────────────
 const clsOf = (enz?: string): EnzClass[] => (enz ? enzById[enz].cls : []);
-const colorOf = (enz?: string) => (enz ? classById[enzById[enz].cls[0]].color : '#94a3b8');
+const exOf = (x: { exam?: Exam }): Exam => x.exam ?? 'mid';
+const regionExam = (r: Region): Exam => (r.part === 'III' || r.part === 'IV' ? 'final' : 'mid');
+const PART_LABEL: Record<string, string> = { I: 'PART I · MIDTERM', II: 'PART II · MIDTERM', III: 'PART III · FINAL', IV: 'PART IV · FINAL' };
+
+/** Below this many screen px per map unit labels are too small to read, so they are hidden (see styles.css). */
+const LOD_FAR = 0.36, LOD_MID = 0.6;
+const lodFor = (pxPerUnit: number) => (pxPerUnit < LOD_FAR ? 'far' : pxPerUnit < LOD_MID ? 'mid' : 'near');
+const MIN_W = 300, MAX_W = 9000;
 
 interface Props {
   scene: Scene;
+  scope: Scope;
   filter: Set<EnzClass>;
   co: Set<CoKey>;
   showReg: boolean;
   selection: Selection;
   onSelect: (s: Selection) => void;
+  /** Fly the camera here whenever `n` changes. */
   focus: { view: View; n: number };
+  /** First view when the map mounts. */
+  start: View;
   quiz: QuizState;
   onReveal: (key: string) => void;
 }
 
-export default function Diagram({ scene, filter, co, showReg, selection, onSelect, focus, quiz, onReveal }: Props) {
-  const { nodeMap, routed, regGeoms } = geometryOf(scene);
-  const { canvas, nodes, edges, regions, bands, captions } = scene;
+export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal }: Props) {
+  const { nodeMap, routed, regGeoms, plateOf, bounds, seam } = geometryOf(scene);
+  const { nodes, edges, regions, bands, captions, labels, decor } = scene;
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
-  const [size, setSize] = useState({ w: 1200, h: 800 });
-  const [hoverEnz, setHoverEnz] = useState<string | null>(null);
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
   const raf = useRef(0);
-  const sizeRef = useRef(size); sizeRef.current = size;
-  // The camera lives outside React: pan, pinch, wheel and animations only rewrite the SVG's viewBox attribute.
-  // Going through state re-rendered every edge, pill and label (and re-measured their text) on each touch move,
-  // which is what made panning lag on phones.
+  const size = useRef({ w: 1200, h: 800 });
+  const lod = useRef('');
+  // The camera lives outside React: pan, pinch, wheel and animations only rewrite the SVG's viewBox attribute, so a
+  // gesture never re-renders the hundreds of elements on the map.
   const vbRef = useRef<View>({ x: 0, y: 0, w: 2300, h: 1400 });
   const setVb = useCallback((v: View) => {
     vbRef.current = v;
-    svg.current?.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+    const el = svg.current;
+    if (!el) return;
+    el.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+    const next = lodFor(size.current.w / v.w);
+    if (next !== lod.current) { lod.current = next; el.setAttribute('data-lod', next); }
   }, []);
 
-  // fit a rectangle into the viewport aspect ratio
-  const fit = useCallback((v: View, s = sizeRef.current): View => {
+  /** Grow a rectangle to the viewport's aspect ratio, keeping its centre. */
+  const fit = useCallback((v: View, s = size.current): View => {
     const asp = s.w / s.h;
     let w = v.w, h = v.h;
     if (w / h < asp) w = h * asp; else h = w / asp;
@@ -226,12 +82,16 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
 
   useLayoutEffect(() => {
     const el = wrap.current!;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    const ro = new ResizeObserver(() => {
+      size.current = { w: el.clientWidth, h: el.clientHeight };
+      setVb(fit(vbRef.current));
+    });
     ro.observe(el);
-    const s = { w: el.clientWidth, h: el.clientHeight };
-    setSize(s);
-    setVb(fit({ x: 560, y: 0, w: 1020, h: 1120 }, s));
+    size.current = { w: el.clientWidth, h: el.clientHeight };
+    setVb(fit(start));
     return () => ro.disconnect();
+    // the start view only applies to the first mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fit, setVb]);
 
   useEffect(() => { if (focus.n > 0) animate(fit(focus.view)); }, [focus, animate, fit]);
@@ -245,7 +105,7 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
       const r = el.getBoundingClientRect();
       const v = vbRef.current;
       const f = Math.exp(ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0012));
-      const w = Math.min(Math.max(v.w * f, 350), 5200), k = w / v.w;
+      const w = Math.min(Math.max(v.w * f, MIN_W), MAX_W), k = w / v.w;
       const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
       const cx = v.x + px * v.w, cy = v.y + py * v.h;
       setVb({ x: cx - px * v.w * k, y: cy - py * v.h * k, w, h: v.h * k });
@@ -255,9 +115,8 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
   }, [setVb]);
 
   /**
-   * Pointer gestures: one pointer pans, two pinch-zoom. Touch, pen and mouse all arrive as
-   * pointer events, so there is a single code path. `drag.moved` suppresses the click that
-   * would otherwise follow a pan or pinch.
+   * Pointer gestures: one pointer pans, two pinch-zoom. Touch, pen and mouse all arrive as pointer events, so there
+   * is a single code path. `drag.moved` suppresses the click that would otherwise follow a pan or pinch.
    */
   const ptrs = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ d: number; cx: number; cy: number; vb: View } | null>(null);
@@ -292,7 +151,7 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
       const [a, b] = [...ptrs.current.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
       const r = el.getBoundingClientRect();
-      const w = Math.min(Math.max(g.vb.w * (g.d / dist), 350), 5200);
+      const w = Math.min(Math.max(g.vb.w * (g.d / dist), MIN_W), MAX_W);
       const h = g.vb.h * (w / g.vb.w);
       // hold the document point under the pinch midpoint still
       const px = (g.cx - r.left) / r.width, py = (g.cy - r.top) / r.height;
@@ -304,7 +163,7 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
     const d = drag.current;
     if (!d || !d.moved || ptrs.current.size !== 1) return;
     const [p] = [...ptrs.current.values()];
-    const v = vbRef.current, s = sizeRef.current;
+    const v = vbRef.current, s = size.current;
     setVb({ ...v, x: d.vx - ((p.x - d.x) * v.w) / s.w, y: d.vy - ((p.y - d.y) * v.h) / s.h });
   }, [setVb]);
 
@@ -350,11 +209,35 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
   };
 
   const zoomBy = (f: number) => {
-    const v = vbRef.current, w = Math.min(Math.max(v.w * f, 350), 5200), k = w / v.w;
+    const v = vbRef.current, w = Math.min(Math.max(v.w * f, MIN_W), MAX_W), k = w / v.w;
     animate({ x: v.x + (v.w - v.w * k) / 2, y: v.y + (v.h - v.h * k) / 2, w, h: v.h * k });
   };
 
-  // ── filter state ────────────────────────────────────────────────
+  /** Cross-references fly to their target and flash it. */
+  const flyTo = (id: string) => {
+    const t = nodeMap[id];
+    if (!t) return;
+    animate(fit({ x: t.x - 420, y: t.y - 280, w: 840, h: 560 }));
+    const el = svg.current?.querySelector(`[data-node="${id}"]`);
+    if (el) { el.classList.remove('flash'); void el.getBoundingClientRect(); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+  };
+
+  // Hovering an enzyme lights up every place it is drawn. Done on the DOM, not in React state, so hovering never
+  // re-renders the map.
+  const hot = useRef<string | null>(null);
+  const setHot = (id: string | null) => {
+    if (hot.current === id) return;
+    const el = svg.current;
+    if (!el) return;
+    if (hot.current) el.querySelectorAll(`[data-enz="${hot.current}"]`).forEach((n) => n.classList.remove('hot'));
+    hot.current = id;
+    if (id) el.querySelectorAll(`[data-enz="${id}"]`).forEach((n) => n.classList.add('hot'));
+  };
+
+  // ── scope + filters ─────────────────────────────────────────────
+  /** Midterm scope drops the final plates entirely; Final scope keeps the midterm ones as dimmed context. */
+  const shown = (x: { exam?: Exam }) => scope !== 'mid' || exOf(x) === 'mid';
+  const inScope = (x: { exam?: Exam }) => scope === 'both' || exOf(x) === scope;
   const filtering = filter.size > 0 || co.size > 0;
   const clsOk = (e: Edge) => filter.size === 0 || clsOf(e.enz).some((c) => filter.has(c));
   const coOk = (e: Edge) => co.size === 0 || !!e.co?.some((c) => co.has(c));
@@ -368,86 +251,189 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
   }, [filter, co, scene]);
   const nodeOn = (n: MapNode) => {
     if (!filtering) return true;
-    if (n.kind === 'card') return true;
+    if (n.kind === 'card' || n.kind === 'xref') return true;
     if (n.enz && co.size === 0) return clsOf(n.enz).some((c) => filter.has(c));
     return activeNodes.has(n.id);
   };
 
   const selEnz = selection?.kind === 'enz' ? selection.id : null;
+  const paper = (x: { exam?: Exam }) => (exOf(x) === 'final' ? 'fin' : 'mid');
+  const visEdges = edges.filter(shown);
+  const visNodes = nodes.filter(shown);
+  const visRegions = regions.filter((r) => shown({ exam: regionExam(r) }));
 
-  // ── renderers ───────────────────────────────────────────────────
-  const renderEdge = (e: Edge) => {
+  // ── plates ──────────────────────────────────────────────────────
+  const renderPlate = (r: Region) => {
+    const ex = regionExam(r);
+    const no = `PLATE ${r.plate}`;
+    const wNo = spaced(no, 10.5, 500, 'mono', 0.14) + 10;
+    const wTitle = measure(r.title, 20, 600, 'display');
+    const wSub = r.sub ? measure(r.sub, 13, 500, 'serif', true) + 10 : 0;
+    const total = wNo + wTitle + wSub;
+    const x0 = r.right ? r.x + r.w - 24 - total : r.x + 24;
+    const tab = PART_LABEL[r.part];
+    const tabW = spaced(tab, 9.5, 500, 'mono', 0.12) + 20;
+    return (
+      <g key={r.id} className={`plate ${ex}${inScope({ exam: ex }) ? '' : ' out'}`}>
+        <path className="plate-tab" d={`M${r.x},${r.y} v-16 h${tabW} l9,16 z`} />
+        <text className="plate-tabt" x={r.x + 10} y={r.y - 4.5}>{tab}</text>
+        <rect className="plate-bg" x={r.x} y={r.y} width={r.w} height={r.h} rx={3} />
+        <rect className="plate-in" x={r.x + 6} y={r.y + 6} width={r.w - 12} height={r.h - 12} rx={2} />
+        <g className="plate-head lod-mid">
+          <text className="plate-no" x={x0} y={r.y + 36}>{no}</text>
+          <text className="plate-title" x={x0 + wNo} y={r.y + 37}><Tspans s={r.title} size={20} /></text>
+          {r.sub && <text className="plate-sub" x={x0 + wNo + wTitle + 10} y={r.y + 37}><Tspans s={r.sub} size={13} /></text>}
+        </g>
+      </g>
+    );
+  };
+
+  /** Zoomed far out, each plate shows just its number and a big title. */
+  const renderFarTitle = (r: Region) => {
+    const size = Math.max(40, Math.min(92, r.w / 9, r.h / 4));
+    const lines = r.title.length > 20 && r.w / r.title.length < size * 0.62 ? splitTitle(r.title) : [r.title];
+    return (
+      <g key={r.id} className={`far-title far-only${inScope({ exam: regionExam(r) }) ? '' : ' out'}`}>
+        <text x={r.x + r.w / 2} y={r.y + r.h / 2 - (lines.length * size * 1.05) / 2 - size * 0.25} textAnchor="middle" className="far-no" fontSize={size * 0.42}>
+          {`PLATE ${r.plate}`}
+        </text>
+        <text x={r.x + r.w / 2} textAnchor="middle" className="far-t" fontSize={size}>
+          {lines.map((l, i) => (
+            <tspan key={i} x={r.x + r.w / 2} y={r.y + r.h / 2 - ((lines.length - 1) * size * 1.05) / 2 + i * size * 1.05 + size * 0.35}>
+              <Tspans s={l} size={size} />
+            </tspan>
+          ))}
+        </text>
+      </g>
+    );
+  };
+
+  // ── edges: lines first, then labels (so no arrow crosses a label) ─
+  const renderLine = (e: Edge) => {
     const r = routed.get(e.id)!;
-    const color = e.style === 'link' || e.style === 'plain' || !e.enz ? '#94a3b8' : colorOf(e.enz);
     const enz = e.enz ? enzById[e.enz] : undefined;
+    const style = e.style ?? (enz ? 'main' : 'plain');
     const irrev = enz?.rev === false;
     const on = edgeOn(e);
-    const hot = !!enz && (hoverEnz === enz.id || selEnz === enz.id);
+    const sel = !!enz && selEnz === enz.id;
     const d = r.pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-    const sw = e.style === 'link' ? 1.5 : irrev ? 4.5 : 2.6;
-    const dash = e.style === 'gng' ? '10 6' : e.style === 'link' ? '4 4' : undefined;
-    const marker = e.style === 'link' ? undefined : `url(#ah-${e.style === 'plain' || !e.enz ? 'grey' : enz!.cls[0]})`;
-    const clickable = !!enz && e.style !== 'link';
-    const sel: Selection = enz ? { kind: 'enz', id: enz.id } : null;
+    const both = e.dir === 'both';
+    const harpoon = both && r.pts.length === 2 && style !== 'link' && style !== 'plain';
+    const marker = style === 'link' ? undefined : `url(#${sel ? 'ah-sel' : style === 'plain' ? 'ah-soft' : 'ah'})`;
+    const clickable = !!enz && style !== 'link';
+    const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
+    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${sel ? ' sel' : ''}`;
 
-    const showPill = !!enz && !e.noPill && e.style !== 'link';
-    const hidden = showPill && isHidden(quiz, 'enz', enz!.id);
-    const tagHidden = !!e.tags && isHidden(quiz, 'tag', tagKey(e));
-    const box = !showPill ? { lines: [] as string[], w: 0, h: 0 } : hidden ? { lines: ['?'], w: 42, h: 24 } : pillBox(enzLabel(enz!.id));
-    const p = r.mid;
-    let tx = p.x, ty = p.y, anchor: 'start' | 'end' | 'middle' = 'middle';
-    const pos = e.tagPos ?? 'r';
-    if (pos === 'r') { tx = p.x + box.w / 2 + 8; ty = p.y + 4; anchor = 'start'; }
-    else if (pos === 'l') { tx = p.x - box.w / 2 - 8; ty = p.y + 4; anchor = 'end'; }
-    else if (pos === 'below') { ty = p.y + box.h / 2 + 14; }
-    else { ty = p.y - box.h / 2 - 7; }
-
-    // dashed feed line from a co-substrate node into the arrow
+    // co-substrate curving into the label / co-product curving out of it
+    const box = enz && !e.noPill && style !== 'link' ? enzBox(enz.id) : { w: 0, h: 0 };
+    const P = labelCenter(e, r.mid, box);
+    const labelBox: Box = { c: P, hw: box.w / 2 + 2, hh: box.h / 2 + 2 };
+    const curve = (a: P, b: P) => {
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const k = 0.18, qx = mx - (b.y - a.y) * k, qy = my + (b.x - a.x) * k;
+      return `M${a.x.toFixed(1)},${a.y.toFixed(1)} Q${qx.toFixed(1)},${qy.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+    };
     let feed: React.JSX.Element | null = null;
-    if (e.feed) {
+    if (e.feed && nodeMap[e.feed]) {
       const F = nodeBox(nodeMap[e.feed]);
-      const s = clip(F, F.c, p);
-      feed = <path d={`M${s.x},${s.y} L${p.x},${p.y}`} className="feedline" stroke={color} markerEnd={`url(#ah-${enz!.cls[0]})`} />;
+      feed = <path className="feedline" d={curve(clip(F, F.c, P), clip(labelBox, P, F.c))} markerEnd="url(#ah-soft)" />;
     }
-
-    // dotted arrow from the pill to a co-product node
     let outLine: React.JSX.Element | null = null;
-    if (e.out) {
+    if (e.out && nodeMap[e.out]) {
       const O = nodeBox(nodeMap[e.out]);
-      const t = clip(O, O.c, p);
-      outLine = <path d={`M${p.x},${p.y} L${t.x},${t.y}`} className="feedline" stroke={color} markerEnd={`url(#ah-${enz!.cls[0]})`} />;
+      outLine = <path className="feedline" d={curve(clip(labelBox, P, O.c), clip(O, O.c, P))} markerEnd="url(#ah-soft)" />;
     }
 
     return (
-      <g key={e.id} className={`edge${on ? '' : ' off'}${hot ? ' hot' : ''}`}
-        onMouseEnter={() => enz && setHoverEnz(enz.id)} onMouseLeave={() => setHoverEnz(null)}>
+      <g key={e.id} className={cls} data-enz={enz?.id}>
         {feed}
         {outLine}
-        <path d={d} className="edge-line" stroke={color} strokeWidth={sw} strokeDasharray={dash} fill="none"
-          markerEnd={marker} markerStart={e.dir === 'both' ? marker : undefined} />
-        {clickable && <path d={d} className="edge-hit" onClick={activate(sel, null)} />}
-        {e.tags && (tagHidden
-          ? (
-            // the label's text stays out of the DOM entirely; the "?" sits where the text would start
-            <g className="pill hidden" transform={`translate(${anchor === 'start' ? tx + TAGQ_W / 2 : anchor === 'end' ? tx - TAGQ_W / 2 : tx},${ty - 4 + (pos === 'above' ? -6 : pos === 'below' ? 6 : 0)})`}
-              onClick={activate(null, tagKey(e))} onKeyDown={onKey(null, tagKey(e))} tabIndex={0} role="button" aria-label="Hidden label, click to reveal">
-              <rect x={-TAGQ_W / 2} y={-TAGQ_H / 2} width={TAGQ_W} height={TAGQ_H} rx={9} />
-              <PillText lines={['?']} />
-            </g>
-          )
-          : <text x={tx} y={ty} textAnchor={anchor} className="tag">{e.tags}</text>)}
-        {showPill && (
-          <g className={`pill${hidden ? ' hidden' : ''}`} transform={`translate(${p.x},${p.y})`}
-            onClick={activate(sel, hidden ? enz!.id : null)} onKeyDown={onKey(sel, hidden ? enz!.id : null)}
+        {harpoon
+          ? <path className="shaft harp" d={harpoonPath(r.pts[0], r.pts[1])} />
+          : <path className="shaft" d={d} markerEnd={marker} markerStart={both ? marker : undefined} />}
+        {clickable && <path d={d} className="edge-hit" onClick={activate(selTarget, null)} />}
+      </g>
+    );
+  };
+
+  const renderLabel = (e: Edge) => {
+    const r = routed.get(e.id)!;
+    const enz = e.enz ? enzById[e.enz] : undefined;
+    const style = e.style ?? (enz ? 'main' : 'plain');
+    const on = edgeOn(e);
+    const showLabel = !!enz && !e.noPill && style !== 'link';
+    if (!showLabel && !e.tags) return null;
+    const hidden = showLabel && isHidden(quiz, 'enz', enz!.id);
+    const box = !showLabel ? { lines: [] as string[], w: 0, h: 0 } : hidden ? HIDDEN_BOX : enzBox(enz!.id);
+    const L = labelCenter(e, r.mid, box);
+    // a label moved beside the arrow no longer sits on it, so arcs and notes attach to the bare arrow
+    const onLine = e.lab ? { w: 0, h: 0 } : box;
+    const P = r.mid;
+    const sel = !!enz && selEnz === enz.id;
+    const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
+    const cls0 = enz ? enz.cls[0] : 'other';
+    const hl = on && filter.size > 0 && clsOk(e);
+    const cls = `elabel-g${on ? '' : ' off'}${inScope(e) ? '' : ' out'}`;
+
+    let tag: React.JSX.Element | null = null;
+    if (e.tags) {
+      const tagHidden = isHidden(quiz, 'tag', tagKey(e));
+      const parts = e.plainTag ? { plain: e.tags } : tagParts(e.tags);
+      const side = e.tagPos ?? 'r';
+      if (parts.plain !== undefined) {
+        let tx = P.x, ty = P.y + 4, anchor: Anchor = 'middle';
+        if (side === 'r') { tx = P.x + onLine.w / 2 + 9; anchor = 'start'; }
+        else if (side === 'l') { tx = P.x - onLine.w / 2 - 9; anchor = 'end'; }
+        else if (side === 'below') ty = P.y + onLine.h / 2 + 15;
+        else ty = P.y - onLine.h / 2 - 8;
+        tag = tagHidden
+          ? <QMark key="q" x={anchor === 'start' ? tx + 17 : anchor === 'end' ? tx - 17 : tx} y={ty - 4} k={tagKey(e)} activate={activate} onKey={onKey} />
+          : <text className="tag lod-near" x={tx} y={ty} textAnchor={anchor}><Tspans s={parts.plain} size={TY.tag} /></text>;
+      } else {
+        const a = arcGeom(P, onLine, side, r.dir, { inn: !!parts.inn, out: !!parts.out });
+        tag = (
+          <g className="arc lod-near">
+            <path className="arc-line" d={a.d} markerEnd="url(#ah-arc)" />
+            {tagHidden
+              ? <QMark x={a.qAnchor === 'start' ? a.q.x + 17 : a.qAnchor === 'end' ? a.q.x - 17 : a.q.x} y={a.q.y - 4} k={tagKey(e)} activate={activate} onKey={onKey} />
+              : (
+                <>
+                  {parts.inn && <text className="tag" x={a.inAt.x} y={a.inAt.y} textAnchor={a.inAnchor}><Tspans s={parts.inn} size={TY.tag} /></text>}
+                  {parts.out && <text className="tag" x={a.outAt.x} y={a.outAt.y} textAnchor={a.outAnchor}><Tspans s={parts.out} size={TY.tag} /></text>}
+                </>
+              )}
+          </g>
+        );
+      }
+    }
+
+    return (
+      <g key={e.id} className={cls} data-enz={enz?.id}>
+        {tag}
+        {showLabel && (
+          <g className={`elabel ${paper(e)}${hidden ? ' hidden' : ''}${sel ? ' sel' : ''}${hl ? ' hl' : ''} lod-mid`}
+            style={{ '--c': `var(--k-${cls0})` } as React.CSSProperties}
+            transform={`translate(${L.x.toFixed(1)},${L.y.toFixed(1)})`}
+            onClick={activate(selTarget, hidden ? enz!.id : null)} onKeyDown={onKey(selTarget, hidden ? enz!.id : null)}
             tabIndex={0} role="button" aria-label={hidden ? 'Hidden enzyme name, click to reveal' : enz!.name}>
-            <rect x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} rx={11} style={hidden ? undefined : { fill: color }} />
-            <PillText lines={box.lines} />
+            <rect className="ko" x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} rx={3} />
+            {hidden
+              ? <text className="qtext" y={5} textAnchor="middle">?</text>
+              : (
+                <>
+                  <ClassMark cls={cls0} x={-box.w / 2 + 10} y={-box.h / 2 + 3.5 + TY.enzLine / 2} />
+                  <text className="etext" textAnchor="start">
+                    <SvgLines lines={box.lines} x={-box.w / 2 + 19} y={0} size={TY.enz} lineH={TY.enzLine} />
+                  </text>
+                </>
+              )}
           </g>
         )}
       </g>
     );
   };
 
+  // ── nodes ───────────────────────────────────────────────────────
   const renderNode = (n: MapNode) => {
     const kind = n.kind ?? 'met';
     const on = nodeOn(n);
@@ -466,147 +452,256 @@ export default function Diagram({ scene, filter, co, showReg, selection, onSelec
       ? { onClick: activate(target, hiddenKey), onKeyDown: onKey(target, hiddenKey), tabIndex: 0, role: 'button' as const, 'aria-label': hidden ? 'Hidden name, click to reveal' : label }
       : {};
     const hw = b.hw - GAP, hh = b.hh - GAP;
-    const cls = `node kind-${kind}${on ? '' : ' off'}${isSel ? ' selected' : ''}${interactive ? ' clickable' : ''}${hidden ? ' hidden' : ''}`;
+    const cls = `node kind-${kind} ${paper(n)}${on ? '' : ' off'}${inScope(n) ? '' : ' out'}${isSel ? ' selected' : ''}${interactive ? ' clickable' : ''}${hidden ? ' hidden' : ''}`;
 
+    if (kind === 'xref') {
+      const t = n.target ? nodeMap[n.target] : undefined;
+      const tp = n.target ? plateOf.get(n.target) : undefined;
+      const link = n.link ? nodeMap[n.link] : undefined;
+      const dx = link ? n.x - link.x : 0;
+      const anchor: Anchor = Math.abs(dx) < 40 ? 'middle' : dx < 0 ? 'end' : 'start';
+      const sub = tp ? `▸ PLATE ${tp.plate} · ${regionExam(tp) === 'final' ? 'FINAL' : 'MIDTERM'}` : '▸';
+      const w = Math.max(measure(labelOf(n), TY.xref, 500, 'serif', true), measure(sub, TY.xrefSub, 500, 'mono'));
+      const left = anchor === 'start' ? n.x : anchor === 'end' ? n.x - w : n.x - w / 2;
+      const me: Box = { c: { x: left + w / 2, y: n.y + 3 }, hw: w / 2 + 6, hh: 17 };
+      const lp = link ? clip(nodeBox(link), link, me.c) : null;
+      const sp = link ? clip(me, me.c, link) : null;
+      return (
+        <g key={n.id} className={`node kind-xref ${t ? paper(t) : 'mid'}${inScope(n) ? '' : ' out'} lod-mid`} data-node={n.id}
+          onClick={(ev) => { ev.stopPropagation(); if (!drag.current?.moved && n.target) flyTo(n.target); }}
+          onKeyDown={(ev) => { if ((ev.key === 'Enter' || ev.key === ' ') && n.target) { ev.preventDefault(); flyTo(n.target); } }}
+          tabIndex={0} role="link" aria-label={`${labelOf(n)}: go to plate ${tp?.plate ?? ''}`}>
+          {lp && sp && <path className="xref-lead" d={`M${sp.x.toFixed(1)},${sp.y.toFixed(1)} L${lp.x.toFixed(1)},${lp.y.toFixed(1)}`} />}
+          <rect className="xref-hit" x={left - 6} y={n.y - 14} width={w + 12} height={34} rx={4} />
+          <text className="xref-t" x={n.x} y={n.y} textAnchor={anchor}><Tspans s={labelOf(n)} size={TY.xref} /></text>
+          <text className="xref-s" x={n.x} y={n.y + 15} textAnchor={anchor}>{sub}</text>
+        </g>
+      );
+    }
     if (kind === 'etag') {
-      const col = classById[enzById[n.enz!].cls[0]].color;
-      const lines = hidden ? ['?'] : pillBox(enzLabel(n.enz!)).lines;
+      const cls0 = enzById[n.enz!].cls[0];
+      const box = hidden ? HIDDEN_BOX : enzBox(n.enz!);
       const link = n.link ? nodeMap[n.link] : null;
       const lp = link ? clip(nodeBox(link), link, n) : null;
       const sp = link ? clip(b, n, link) : null;
       return (
-        <g key={n.id} className={cls} {...props} onMouseEnter={() => setHoverEnz(n.enz!)} onMouseLeave={() => setHoverEnz(null)}>
-          {lp && sp && <path d={`M${sp.x},${sp.y} L${lp.x},${lp.y}`} className="feedline" stroke={col} />}
-          <g transform={`translate(${n.x},${n.y})`} className={`pill${hidden ? ' hidden' : ''}`}>
-            <rect x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={11} style={hidden ? undefined : { fill: col }} />
-            <PillText lines={lines} />
+        <g key={n.id} className={`${cls} lod-mid`} data-enz={n.enz} data-node={n.id} {...props}>
+          {lp && sp && <path className="xref-lead" d={`M${sp.x},${sp.y} L${lp.x},${lp.y}`} />}
+          <g transform={`translate(${n.x},${n.y})`} className={`elabel ${paper(n)}${hidden ? ' hidden' : ''}${isSel ? ' sel' : ''}`}
+            style={{ '--c': `var(--k-${cls0})` } as React.CSSProperties}>
+            <rect className="ko framed" x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} rx={3} />
+            {hidden
+              ? <text className="qtext" y={5} textAnchor="middle">?</text>
+              : (
+                <>
+                  <ClassMark cls={cls0} x={-box.w / 2 + 10} y={-box.h / 2 + 3.5 + TY.enzLine / 2} />
+                  <text className="etext" textAnchor="start"><SvgLines lines={box.lines} x={-box.w / 2 + 19} y={0} size={TY.enz} lineH={TY.enzLine} /></text>
+                </>
+              )}
           </g>
         </g>
       );
     }
     if (kind === 'cx') {
-      const col = classById[enzById[n.enz!].cls[0]].color;
+      const cls0 = enzById[n.enz!].cls[0];
       return (
-        <g key={n.id} className={cls} {...props} transform={`translate(${n.x},${n.y})`}>
-          <rect x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={12} fill={col} fillOpacity={0.14} stroke={col} strokeWidth={2.5} />
-          <text y={7} textAnchor="middle" className="cx-label" fill={col}>{label}</text>
+        <g key={n.id} className={cls} data-enz={n.enz} data-node={n.id} {...props} transform={`translate(${n.x},${n.y})`}
+          style={{ '--c': `var(--k-${cls0})` } as React.CSSProperties}>
+          <rect className="cxbox" x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={6} />
+          <text y={6} textAnchor="middle" className="cx-label"><Tspans s={label} size={TY.cx} /></text>
+          {!hidden && <ClassMark cls={cls0} x={0} y={-hh + 14} s={3.6} />}
         </g>
       );
     }
     if (kind === 'card') {
       return (
-        <g key={n.id} className={cls} {...props} transform={`translate(${n.x},${n.y})`}>
-          <rect x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={hh} />
-          <circle cx={-hw + 15} cy={0} r={7.5} className="i-dot" />
-          <text x={-hw + 15} y={3.8} textAnchor="middle" className="i-mark">i</text>
-          <text x={-hw + 28} y={4.2} className="card-label">{label}</text>
+        <g key={n.id} className={`${cls} lod-mid`} data-node={n.id} {...props} transform={`translate(${n.x},${n.y})`}>
+          <rect className="cardbox" x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={hh} />
+          <InfoGlyph x={-hw + 13} y={0} />
+          <text x={-hw + 26} y={4.4} className="card-label"><Tspans s={label} size={TY.card} /></text>
         </g>
       );
     }
+    const fam = kind === 'small' ? 'small' : kind === 'proc' ? 'proc' : 'met';
+    const size = fam === 'small' ? TY.small : fam === 'proc' ? TY.proc : TY.met;
     return (
-      <g key={n.id} className={cls} {...props} transform={`translate(${n.x},${n.y})`}>
-        <rect x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={kind === 'small' ? 8 : hh} />
-        <text y={kind === 'small' ? 4.5 : 5.2} textAnchor="middle" className="node-label">{label}</text>
-        {n.badge && !hidden && <text x={hw + 6} y={4} className="badge">{n.badge}</text>}
+      <g key={n.id} className={cls} data-node={n.id} {...props} transform={`translate(${n.x},${n.y})`}>
+        <rect className="nbox" x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={kind === 'met' ? hh : 6} />
+        {kind === 'met' && <circle className="far-dot far-only" r={7} />}
+        <text y={kind === 'met' ? 5.6 : 4.6} textAnchor="middle" className="node-label lod-mid"><Tspans s={label} size={size} /></text>
+        {n.badge && !hidden && <text x={hw + 5} y={4.5} className="badge lod-near">{n.badge}</text>}
       </g>
     );
   };
 
-  return (
-    <div className="canvas" ref={wrap}>
-      <svg ref={svg} onPointerDown={onPointerDown} onClick={() => { if (!drag.current?.moved) onSelect(null); }}
-        role="img" aria-label="Carbohydrate metabolism pathway map">
-        <defs>
-          {[...Object.values(classById).map((c) => [c.id, c.color] as const), ['grey', '#94a3b8'] as const].map(([id, col]) => (
-            <marker key={id} id={`ah-${id}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
-              <path d="M0,0.5 L10,5 L0,9.5 z" fill={col} />
-            </marker>
-          ))}
-        </defs>
-
-        <rect x={-2000} y={-2000} width={canvas.w + 4000} height={canvas.h + 4000} className="bg" />
-
-        {regions.map((r) => (
-          <g key={r.id} className="region">
-            <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={22} fill={r.tone} />
-            <text x={r.right ? r.x + r.w - 20 : r.x + 20} y={r.y + 30} textAnchor={r.right ? 'end' : 'start'} className="region-title">{r.title}</text>
-          </g>
-        ))}
-
-        {/* glycolysis phase captions */}
-        <g className="phase">
-          <text x={650} y={430}>PREPARATORY PHASE</text><text x={650} y={446} className="s">steps 1–5 · spends 2 ATP</text>
-          <text x={650} y={1180}>PAYOFF PHASE</text><text x={650} y={1196} className="s">steps 6–10 · makes</text><text x={650} y={1211} className="s">4 ATP + 2 NADH</text>
-        </g>
-
-        {/* inner membrane */}
-        <g className="membrane">
-          <rect x={800} y={3395} width={1430} height={110} rx={10} />
-          <text x={790} y={3250} className="region-title sub">OXIDATIVE PHOSPHORYLATION · inner mitochondrial membrane</text>
-          <text x={2380} y={3375} textAnchor="end">MATRIX ↑</text>
-          <text x={2380} y={3560} textAnchor="end">↓ INTERMEMBRANE SPACE</text>
-        </g>
-        <text x={1560} y={2610} textAnchor="middle" className="region-title sub">CITRIC ACID CYCLE</text>
-
-        {/* membrane strips + captions of the two NADH-shuttle diagrams */}
-        <g className="membrane">
-          {bands.map((b) => <rect key={b.id} x={b.x} y={b.y} width={b.w} height={b.h} rx={10} />)}
-          {captions.map((c, i) => <text key={i} x={c.x} y={c.y} textAnchor={c.anchor ?? 'start'}>{c.text}</text>)}
-        </g>
-
-        {edges.map(renderEdge)}
-
-        {showReg && regBlocks.map((r) => {
-          const g = regGeoms.get(r.id)!;
-          const box: Box = { c: g.c, hw: g.w / 2 + 6, hh: g.h / 2 + 6 };
-          const from = clip(box, g.c, g.anchor);
-          const to = 'edge' in r.anchor ? g.anchor : clip(nodeBox(nodeMap[r.anchor.node]), g.anchor, g.c);
-          // an inhibitor-only block ends in the ⊣ bar that means "inhibits"
-          const bar = !r.act;
-          const dx = to.x - from.x, dy = to.y - from.y, L = Math.hypot(dx, dy) || 1;
-          const ex = to.x - (dx / L) * 5, ey = to.y - (dy / L) * 5;
-          const nx = (-dy / L) * 9, ny = (dx / L) * 9;
-          let top = -g.h / 2;
+  // ── regulation layer ────────────────────────────────────────────
+  const renderReg = () => regBlocks.map((r) => {
+    const g = regGeoms.get(r.id);
+    if (!g) return null;
+    const anchorExam: Exam = 'edge' in r.anchor
+      ? exOf(edges.find((e) => e.id === (r.anchor as { edge: string }).edge) ?? {})
+      : exOf(nodeMap[(r.anchor as { node: string }).node] ?? {});
+    if (!shown({ exam: anchorExam })) return null;
+    const box: Box = { c: g.c, hw: g.w / 2 + 6, hh: g.h / 2 + 6 };
+    const from = clip(box, g.c, g.anchor);
+    let to: P;
+    if ('edge' in r.anchor) {
+      const e = edges.find((x) => x.id === (r.anchor as { edge: string }).edge)!;
+      const eb = e.enz && !e.noPill ? enzBox(e.enz) : { w: 0, h: 0 };
+      const c = labelCenter(e, g.anchor, eb);
+      to = clip({ c, hw: eb.w / 2 + 3, hh: eb.h / 2 + 3 }, c, g.c);
+    } else to = clip(nodeBox(nodeMap[r.anchor.node]), g.anchor, g.c);
+    // an inhibitor-only block ends in the ⊣ bar that means "inhibits"
+    const bar = !r.act;
+    const dx = to.x - from.x, dy = to.y - from.y, L = Math.hypot(dx, dy) || 1;
+    const ex = to.x - (dx / L) * 5, ey = to.y - (dy / L) * 5;
+    const nx = (-dy / L) * 9, ny = (dx / L) * 9;
+    let top = -g.h / 2;
+    return (
+      <g key={r.id} className={`reg lod-mid${r.act ? '' : ' inh-only'}${anchorExam === 'final' ? ' fin' : ''}${inScope({ exam: anchorExam }) ? '' : ' out'}`}
+        onClick={activate({ kind: 'reg', id: r.id }, null)} onKeyDown={onKey({ kind: 'reg', id: r.id }, null)} tabIndex={0} role="button" aria-label={`Regulation of ${r.title}`}>
+        <path className="reg-line" d={`M${from.x.toFixed(1)},${from.y.toFixed(1)} L${ex.toFixed(1)},${ey.toFixed(1)}`} />
+        {bar
+          ? <path className="reg-bar" d={`M${(ex - nx).toFixed(1)},${(ey - ny).toFixed(1)} L${(ex + nx).toFixed(1)},${(ey + ny).toFixed(1)}`} />
+          : <circle className="reg-dot" cx={ex} cy={ey} r={4} />}
+        {g.rows.map((row, i) => {
+          const y = top + row.h / 2; top += row.h + 5;
           return (
-            <g key={r.id} className={`reg${r.act ? '' : ' inh-only'}`} onClick={activate({ kind: 'reg', id: r.id }, null)}
-              onKeyDown={onKey({ kind: 'reg', id: r.id }, null)} tabIndex={0} role="button" aria-label={`Regulation of ${r.title}`}>
-              <path className="reg-line" d={`M${from.x},${from.y} L${ex},${ey}`} />
-              {bar
-                ? <path className="reg-bar" d={`M${ex - nx},${ey - ny} L${ex + nx},${ey + ny}`} />
-                : <circle className="reg-dot" cx={ex} cy={ey} r={4} />}
-              {g.rows.map((row, i) => {
-                const y = top + row.h / 2; top += row.h + 5;
-                return (
-                  <g key={i} className={`reg-row ${row.kind}`} transform={`translate(${g.c.x},${g.c.y + y})`}>
-                    <rect x={-g.w / 2} y={-row.h / 2} width={g.w} height={row.h} rx={7} />
-                    <text className="reg-sym" x={-g.w / 2 + 14} y={4.5} textAnchor="middle">{row.sym}</text>
-                    <text className="reg-text" x={-g.w / 2 + 27}>
-                      {row.lines.map((l, k) => (
-                        <tspan key={k} x={-g.w / 2 + 27} y={-((row.lines.length - 1) * 13) / 2 + k * 13 + 4.2}>{l}</tspan>
-                      ))}
-                    </text>
-                  </g>
-                );
-              })}
+            <g key={i} className={`reg-row ${row.kind}`} transform={`translate(${g.c.x.toFixed(1)},${(g.c.y + y).toFixed(1)})`}>
+              <rect x={-g.w / 2} y={-row.h / 2} width={g.w} height={row.h} rx={4} />
+              <RegSym kind={row.kind} x={-g.w / 2 + 13} y={0} />
+              <text className="reg-text" textAnchor="start">
+                <SvgLines lines={row.lines} x={-g.w / 2 + 25} y={0} size={TY.reg} lineH={TY.regLine} />
+              </text>
             </g>
           );
         })}
+      </g>
+    );
+  });
 
-        {decor.map((d, i) => (
-          <g key={i} className="proton" transform={`translate(${d.x},${d.y})`}>
-            <path d={d.dir === 'down' ? 'M0,0 L0,26 M-6,20 L0,27 L6,20' : 'M0,26 L0,0 M-6,7 L0,0 L6,7'} />
-            <text x={12} y={17}>{d.label}</text>
+  const hasFinal = regions.some((r) => regionExam(r) === 'final');
+  return (
+    <div className="canvas" ref={wrap}>
+      <svg ref={svg} onPointerDown={onPointerDown} onClick={() => { if (!drag.current?.moved) onSelect(null); }}
+        onMouseOver={(ev) => { if (ptrs.current.size) return; const t = (ev.target as Element).closest('[data-enz]'); setHot(t ? t.getAttribute('data-enz') : null); }}
+        onMouseLeave={() => setHot(null)}
+        role="img" aria-label="Metabolism map">
+        <defs>
+          <marker id="ah" viewBox="0 0 12 10" refX="10.5" refY="5" markerWidth="12" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <path className="ah" d="M0,0.8 L12,5 L0,9.2 L3,5z" />
+          </marker>
+          <marker id="ah-sel" viewBox="0 0 12 10" refX="10.5" refY="5" markerWidth="13" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <path className="ah sel" d="M0,0.8 L12,5 L0,9.2 L3,5z" />
+          </marker>
+          <marker id="ah-soft" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="9" markerHeight="7.5" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <path className="ah soft" d="M0,0.5 L10,4 L0,7.5 L2.4,4z" />
+          </marker>
+          <marker id="ah-arc" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" markerHeight="6.5" markerUnits="userSpaceOnUse" orient="auto">
+            <path className="ah soft" d="M0,0.5 L10,4 L0,7.5 L2.4,4z" />
+          </marker>
+          <pattern id="grain" width="5" height="5" patternUnits="userSpaceOnUse">
+            <rect className="desk" width="5" height="5" />
+            <circle className="grain" cx="1.2" cy="1.3" r=".55" />
+            <circle className="grain" cx="3.7" cy="3.6" r=".45" />
+          </pattern>
+          <pattern id="mem-v" width="6" height="6" patternUnits="userSpaceOnUse"><rect className="mem-bg" width="6" height="6" /><path className="mem-hatch" d="M3,0 V6" /></pattern>
+          <pattern id="mem-h" width="6" height="6" patternUnits="userSpaceOnUse"><rect className="mem-bg" width="6" height="6" /><path className="mem-hatch" d="M0,3 H6" /></pattern>
+        </defs>
+
+        <rect x={-20000} y={-20000} width={60000} height={60000} fill="url(#grain)" />
+
+        {hasFinal && scope !== 'mid' && seam && (
+          <g className="seam lod-mid">
+            <path d={`M${seam.x + seam.w / 2},${seam.y} V${seam.y + seam.h}`} />
+            {[0.2, 0.5, 0.8].map((k) => (
+              <g key={k}>
+                <text transform={`translate(${seam.x + seam.w / 2 - 12},${seam.y + seam.h * k}) rotate(-90)`} textAnchor="middle">◂ MIDTERM · PARTS I–II</text>
+                <text transform={`translate(${seam.x + seam.w / 2 + 12},${seam.y + seam.h * k}) rotate(90)`} textAnchor="middle">FINAL · PARTS III–IV ▸</text>
+              </g>
+            ))}
+          </g>
+        )}
+
+        {visRegions.map(renderPlate)}
+
+        {labels.map((l, i) => (
+          <g key={i} className={`label ${l.kind} ${l.kind === 'phase' ? 'lod-near' : 'lod-mid'}`}>
+            <text x={l.x} y={l.y} textAnchor={l.anchor ?? 'start'} className="lt"><Tspans s={l.text} size={l.kind === 'section' ? 18 : 11} /></text>
+            {l.sub?.map((s, k) => <text key={k} x={l.x} y={l.y + (l.kind === 'section' ? 20 : 16) + k * 15} textAnchor={l.anchor ?? 'start'} className="ls"><Tspans s={s} size={12.5} /></text>)}
           </g>
         ))}
 
-        {nodes.map(renderNode)}
+        <g className="membranes">
+          {bands.map((b) => {
+            const horiz = b.w >= b.h;
+            return (
+              <g key={b.id} className="membrane">
+                <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={8} className="mem-body" fill={`url(#mem-${horiz ? 'v' : 'h'})`} />
+                {horiz
+                  ? <><path className="mem-heads" d={`M${b.x + 8},${b.y + 5} H${b.x + b.w - 8}`} /><path className="mem-heads" d={`M${b.x + 8},${b.y + b.h - 5} H${b.x + b.w - 8}`} /></>
+                  : <><path className="mem-heads" d={`M${b.x + 5},${b.y + 8} V${b.y + b.h - 8}`} /><path className="mem-heads" d={`M${b.x + b.w - 5},${b.y + 8} V${b.y + b.h - 8}`} /></>}
+              </g>
+            );
+          })}
+          {captions.map((c, i) => <text key={i} className="caption lod-near" x={c.x} y={c.y} textAnchor={c.anchor ?? 'start'}><Tspans s={c.text} size={11} /></text>)}
+        </g>
+
+        {visEdges.map(renderLine)}
+        {visEdges.map(renderLabel)}
+
+        {showReg && renderReg()}
+
+        {decor.map((d, i) => (
+          <g key={i} className="proton lod-near" transform={`translate(${d.x},${d.y})`}>
+            <path d={d.dir === 'down' ? 'M0,0 L0,26 M-6,20 L0,27 L6,20' : 'M0,26 L0,0 M-6,7 L0,0 L6,7'} />
+            <text x={12} y={17}><Tspans s={d.label} size={12.5} /></text>
+          </g>
+        ))}
+
+        {visNodes.map(renderNode)}
+
+        {visRegions.map(renderFarTitle)}
       </svg>
 
-      <div className="zoom">
-        <button onClick={() => zoomBy(0.7)} aria-label="Zoom in">+</button>
-        <button onClick={() => zoomBy(1.4)} aria-label="Zoom out">−</button>
-        <button onClick={() => animate(fit({ x: 0, y: 0, w: canvas.w, h: canvas.h }))} aria-label="Fit whole map" title="Whole map">⤢</button>
+      <div className="zoom" role="group" aria-label="Zoom">
+        <button onClick={() => zoomBy(0.7)} aria-label="Zoom in" title="Zoom in">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" /></svg>
+        </button>
+        <button onClick={() => zoomBy(1.4)} aria-label="Zoom out" title="Zoom out">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8h10" /></svg>
+        </button>
+        <button onClick={() => { const b = bounds[scope]; animate(fit({ x: b.x - 40, y: b.y - 40, w: b.w + 80, h: b.h + 80 })); }} aria-label="Fit the whole map" title="Whole map">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" /></svg>
+        </button>
       </div>
     </div>
   );
+}
+
+/** "?" chip standing in for a hidden reaction label. */
+function QMark({ x, y, k, activate, onKey }: {
+  x: number; y: number; k: string;
+  activate: (s: Selection, h: string | null) => (ev: React.MouseEvent | React.KeyboardEvent) => void;
+  onKey: (s: Selection, h: string | null) => (ev: React.KeyboardEvent) => void;
+}) {
+  return (
+    <g className="qchip" transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} onClick={activate(null, k)} onKeyDown={onKey(null, k)}
+      tabIndex={0} role="button" aria-label="Hidden label, click to reveal">
+      <rect x={-17} y={-12} width={34} height={24} rx={4} />
+      <text y={5} textAnchor="middle">?</text>
+    </g>
+  );
+}
+
+/** Two roughly equal lines for a long far-zoom title. */
+function splitTitle(t: string): string[] {
+  const words = t.split(' ');
+  let best = [t], score = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+    const s = Math.abs(a.length - b.length);
+    if (s < score) { score = s; best = [a, b]; }
+  }
+  return best;
 }

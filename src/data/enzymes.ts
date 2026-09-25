@@ -1,14 +1,15 @@
 import type { ClassInfo, Enzyme } from './types';
 
+/** Colours live in styles.css (--k-<id>) so each theme can tune them; every type also has its own marker shape. */
 export const classes: ClassInfo[] = [
-  { id: 'kinase', label: 'Kinase', color: '#2563eb', hint: 'Transfers a phosphoryl group from ATP/GTP (EC 2.7)' },
-  { id: 'isomerase', label: 'Isomerase / mutase', color: '#16a34a', hint: 'Rearranges atoms within one molecule (EC 5)' },
-  { id: 'dehydrogenase', label: 'Dehydrogenase / oxidoreductase', color: '#dc2626', hint: 'Moves electrons, usually via NAD⁺, NADP⁺ or FAD (EC 1)' },
-  { id: 'lyase', label: 'Lyase', color: '#d97706', hint: 'Cleaves or forms bonds without hydrolysis or oxidation (EC 4)' },
-  { id: 'hydrolase', label: 'Phosphatase / hydrolase', color: '#7c3aed', hint: 'Cleaves a bond using water (EC 3)' },
-  { id: 'transferase', label: 'Transferase', color: '#0d9488', hint: 'Transfers a group other than phosphate from ATP (EC 2, non-kinase)' },
-  { id: 'ligase', label: 'Ligase / synthetase', color: '#db2777', hint: 'Joins molecules using ATP/GTP energy (EC 6)' },
-  { id: 'other', label: 'Other / summary', color: '#64748b', hint: 'Multi-step summary arrows and membrane complexes' },
+  { id: 'kinase', label: 'Kinase', hint: 'Transfers a phosphoryl group from ATP/GTP (EC 2.7)' },
+  { id: 'isomerase', label: 'Isomerase / mutase', hint: 'Rearranges atoms within one molecule (EC 5)' },
+  { id: 'dehydrogenase', label: 'Dehydrogenase / oxidoreductase', hint: 'Moves electrons, usually via NAD⁺, NADP⁺ or FAD (EC 1)' },
+  { id: 'lyase', label: 'Lyase', hint: 'Cleaves or forms bonds without hydrolysis or oxidation (EC 4)' },
+  { id: 'hydrolase', label: 'Phosphatase / hydrolase', hint: 'Cleaves a bond using water (EC 3)' },
+  { id: 'transferase', label: 'Transferase', hint: 'Transfers a group other than phosphate from ATP (EC 2, non-kinase)' },
+  { id: 'ligase', label: 'Ligase / synthetase', hint: 'Joins molecules using ATP/GTP energy (EC 6)' },
+  { id: 'other', label: 'Other / summary', hint: 'Multi-step summary arrows, transporters and membrane complexes' },
 ];
 
 export const classById = Object.fromEntries(classes.map((c) => [c.id, c])) as Record<string, ClassInfo>;
