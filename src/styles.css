@@ -395,8 +395,9 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 /* ── details drawer ──────────────────────────────────────────────── */
 .drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--panel); border-left: 1px solid var(--hair); box-shadow: -10px 0 30px rgba(40, 30, 15, .1); padding: 20px 24px 34px; overflow-y: auto; animation: slide .18s ease-out; z-index: 10; }
 @keyframes slide { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-.drawer .close { position: absolute; top: 12px; right: 12px; }
-.kicker { display: flex; align-items: center; gap: 8px; font: 500 10.5px var(--f-mono); letter-spacing: .1em; color: var(--ink-3); padding-right: 36px; flex-wrap: wrap; }
+.drawer-tools { position: absolute; top: 12px; right: 12px; display: flex; gap: 2px; }
+.drawer-tools .done { color: var(--act); }
+.kicker { display: flex; align-items: center; gap: 8px; font: 500 10.5px var(--f-mono); letter-spacing: .1em; color: var(--ink-3); padding-right: 76px; flex-wrap: wrap; }
 .part-badge { font-weight: 600; padding: 1px 6px; border-radius: 3px; color: var(--tab-ink); background: var(--mid); letter-spacing: .08em; }
 .part-badge.final { background: var(--fin); }
 .drawer h2 { font: 600 27px/1.12 var(--f-display); letter-spacing: -.01em; margin: 12px 0 8px; padding-right: 20px; }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Diagram, { type Selection, type View } from './Diagram';
 import Drawer from './Drawer';
 import { classById, enzById } from './data/enzymes';
@@ -11,7 +11,11 @@ import QuizBar from './shell/QuizBar';
 import Search from './shell/Search';
 import TopBar, { type Panel } from './shell/TopBar';
 import { cofactors } from './data/cofactors';
-import { PHONE_QUERY, regionView } from './locate';
+import { bestPlace, PHONE_QUERY, placesOf, regionView, viewAround } from './locate';
+import { copyText, currentView, parseHash, toHash, type Link } from './links';
+import { cardById } from './data/cards';
+import { regById } from './data/regulation';
+import { geometryOf, labelOf } from './map/geometry';
 import { MarkIcon } from './map/glyphs';
 import { Rich } from './rich';
 
@@ -39,6 +43,38 @@ function startView(scene: Scene, scope: Scope, phone: boolean): View {
   return phone ? { x: 850, y: -24, w: 600, h: 1160 } : { x: 560, y: 0, w: 1020, h: 1120 };
 }
 
+/** A linked selection that no longer exists (renamed id, typo) is ignored rather than crashing the drawer. */
+function valid(sel: NonNullable<Selection>, scene: Scene): boolean {
+  if (sel.kind === 'enz') return !!enzById[sel.id] && placesOf(sel, scene).length > 0;
+  if (sel.kind === 'node') return !!geometryOf(scene).nodeMap[sel.id];
+  if (sel.kind === 'card') return !!cardById[sel.id] && placesOf(sel, scene).length > 0;
+  return !!regById[sel.id] && placesOf(sel, scene).length > 0;
+}
+
+/** Where a link points: its own view, else its plate, else the best place of its selection. */
+function linkView(l: Link, scene: Scene, scope: Scope): View | null {
+  if (l.view) return l.view;
+  if (l.plate) { const r = scene.regions.find((x) => x.plate === l.plate); return r ? regionView(r) : null; }
+  const p = l.sel && bestPlace(placesOf(l.sel, scene), scope);
+  return p ? viewAround(p) : null;
+}
+
+/** A link into material the stored scope hides widens the scope, so the link never lands on an empty desk. */
+function scopeFor(l: Link | null, scene: Scene, scope: Scope): Scope {
+  if (!l || scope === 'both') return scope;
+  const exams = l.sel ? placesOf(l.sel, scene).map((p) => p.exam)
+    : l.plate ? scene.regions.filter((r) => r.plate === l.plate).map((r) => (r.part === 'III' || r.part === 'IV' ? 'final' : 'mid'))
+      : [];
+  return exams.length && !exams.includes(scope) ? 'both' : scope;
+}
+
+function titleOf(sel: NonNullable<Selection>, scene: Scene): string {
+  if (sel.kind === 'enz') return enzById[sel.id].name;
+  if (sel.kind === 'card') return cardById[sel.id].title;
+  if (sel.kind === 'reg') return regById[sel.id].title;
+  return labelOf(geometryOf(scene).nodeMap[sel.id]);
+}
+
 export default function App() {
   const [phone, setPhone] = useState(() => window.matchMedia(PHONE_QUERY).matches);
   useEffect(() => {
@@ -49,9 +85,14 @@ export default function App() {
   }, []);
   const scene = phone ? phoneScene : desktopScene;
 
+  // a deep link in the URL decides the first selection and camera
+  const [link] = useState<Link | null>(() => {
+    const l = parseHash(location.hash);
+    return l && (!l.sel || valid(l.sel, scene)) ? l : null;
+  });
   const [scope, setScope] = useState<Scope>(() => {
     const s = store.get('atlas-scope');
-    return s === 'mid' || s === 'final' || s === 'both' ? s : 'both';
+    return scopeFor(link, scene, s === 'mid' || s === 'final' || s === 'both' ? s : 'both');
   });
   const [dark, setDark] = useState(() => document.documentElement.dataset.theme === 'dark');
   useEffect(() => {
@@ -62,8 +103,8 @@ export default function App() {
   const [filter, setFilter] = useState<Set<EnzClass>>(new Set());
   const [co, setCo] = useState<Set<CoKey>>(new Set());
   const [showReg, setShowReg] = useState(false);
-  const [selection, setSelection] = useState<Selection>(null);
-  const [start] = useState(() => startView(scene, scope, phone));
+  const [selection, setSelection] = useState<Selection>(() => link?.sel ?? null);
+  const [start] = useState(() => (link && linkView(link, scene, scope)) || startView(scene, scope, phone));
   const [focus, setFocus] = useState<{ view: View; n: number }>({ view: start, n: 0 });
   const [panel, setPanel] = useState<Panel>(null);
   const [searching, setSearching] = useState(false);
@@ -73,6 +114,42 @@ export default function App() {
   const [everEdited, setEverEdited] = useState(false);
 
   const go = useCallback((view: View) => setFocus((f) => ({ view, n: f.n + 1 })), []);
+
+  // ── deep links ────────────────────────────────────────────────────
+  // Opening the drawer from the bare map pushes one history entry; moving between selections replaces it, so Back
+  // always closes the drawer rather than stepping through everything clicked. Closing pops that entry when this app
+  // pushed it, and otherwise (a link opened directly) just clears the hash.
+  const selRef = useRef<Selection>(selection);
+  selRef.current = selection;
+  const closeDrawer = useCallback(() => {
+    if (!selRef.current) return;
+    setSelection(null);
+    if (history.state?.atlas === 'open') history.back();
+    else if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  }, []);
+  /** Every selection goes through here (null = a click on the bare map, which closes the drawer). */
+  const select = useCallback((sel: Selection) => {
+    if (!sel) return closeDrawer();
+    const url = toHash(sel);
+    if (selRef.current) history.replaceState(history.state, '', url);
+    else history.pushState({ atlas: 'open' }, '', url);
+    setSelection(sel);
+  }, [closeDrawer]);
+  useEffect(() => {
+    const onPop = () => {
+      const l = parseHash(location.hash);
+      const sel = l?.sel && valid(l.sel, scene) ? l.sel : null;
+      setSelection(sel);
+      const v = sel && l && linkView(l, scene, scope);
+      if (v) go(v);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [scene, scope, go]);
+  useEffect(() => {
+    document.title = selection ? `${titleOf(selection, scene)} · Metabolism Atlas` : 'Metabolism Atlas';
+  }, [selection, scene]);
+  const copyLink = () => copyText(location.origin + location.pathname + toHash(selection, currentView()));
 
   const changeScope = (s: Scope) => {
     setScope(s);
@@ -96,7 +173,7 @@ export default function App() {
     if (next.has(k)) { if (next.size > 1) next.delete(k); } else next.add(k);
     return next;
   });
-  const toggleQuiz = () => { setQuizOn((v) => !v); setRevealed(new Set()); setSelection(null); };
+  const toggleQuiz = () => { setQuizOn((v) => !v); setRevealed(new Set()); closeDrawer(); };
 
   // ── highlight counts (within scope) ───────────────────────────────
   const counts = useMemo(() => {
@@ -139,7 +216,7 @@ export default function App() {
     setSearching(false);
     setPanel(null);
     go(view);
-    if (sel) setSelection(sel);
+    if (sel) select(sel);
   };
 
   const scopeNote = scope === 'both' ? 'all plates' : scope === 'final' ? 'final plates only' : 'midterm plates only';
@@ -158,7 +235,7 @@ export default function App() {
       )}
 
       <main>
-        <Diagram scene={scene} scope={scope} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={setSelection}
+        <Diagram scene={scene} scope={scope} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={select}
           focus={focus} start={start} quiz={quiz} onReveal={reveal} />
 
         {highlights > 0 && (
@@ -187,7 +264,7 @@ export default function App() {
         )}
 
         {selection && (
-          <Drawer selection={selection} scene={scene} scope={scope} onClose={() => setSelection(null)} onSelect={setSelection} onGo={go}
+          <Drawer selection={selection} scene={scene} scope={scope} onClose={closeDrawer} onSelect={select} onGo={go} onCopyLink={copyLink}
             onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} />
         )}
 

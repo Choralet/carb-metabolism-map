@@ -9,7 +9,7 @@ import { molPlaces, placesOf, viewAround, type Place } from './locate';
 import { geometryOf } from './map/geometry';
 import { MarkIcon, RegIcon } from './map/glyphs';
 import { Rich } from './rich';
-import { CloseIcon } from './shell/icons';
+import { CheckIcon, CloseIcon, LinkIcon } from './shell/icons';
 import { loadStructures } from './structures';
 
 interface Props {
@@ -20,6 +20,8 @@ interface Props {
   onSelect: (s: Selection) => void;
   onGo: (v: View) => void;
   onEdit: (title: string, smiles: string) => void;
+  /** Copies a link to this selection (and the current view); resolves true when the clipboard took it. */
+  onCopyLink: () => Promise<boolean>;
 }
 
 function Structure({ molId, onEdit }: { molId: string; onEdit: Props['onEdit'] }) {
@@ -145,7 +147,9 @@ function Harpoons() {
   );
 }
 
-export default function Drawer({ selection, scene, scope, onClose, onSelect, onGo, onEdit }: Props) {
+export default function Drawer({ selection, scene, scope, onClose, onSelect, onGo, onEdit, onCopyLink }: Props) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => setCopied(false), [selection]);
   useEffect(() => {
     const h = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !document.querySelector('.modal-back:not(.hidden), .palette-back, .panel')) onClose(); };
     window.addEventListener('keydown', h);
@@ -222,7 +226,13 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
 
   return (
     <aside className={`drawer ${here?.exam ?? 'mid'}`} aria-live="polite">
-      <button className="icon-btn close" onClick={onClose} aria-label="Close details"><CloseIcon /></button>
+      <div className="drawer-tools">
+        <button className={`icon-btn${copied ? ' done' : ''}`} onClick={() => onCopyLink().then((ok) => setCopied(ok))}
+          aria-label={copied ? 'Link copied' : 'Copy a link to this'} title={copied ? 'Link copied' : 'Copy a link to this (opens here, at this view)'}>
+          {copied ? <CheckIcon /> : <LinkIcon />}
+        </button>
+        <button className="icon-btn" onClick={onClose} aria-label="Close details"><CloseIcon /></button>
+      </div>
       {body}
     </aside>
   );
