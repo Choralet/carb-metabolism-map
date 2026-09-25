@@ -3,7 +3,7 @@ import { cardById } from './data/cards';
 import { classById, enzById, enzymes } from './data/enzymes';
 import { otherAgents, regById, regForEnzyme } from './data/regulation';
 import { molById } from './data/molecules';
-import type { Exam, Scene, Scope } from './data/types';
+import type { Exam, Scene, Scope, StudyTable } from './data/types';
 import type { Selection, View } from './Diagram';
 import { molPlaces, placesOf, viewAround, type Place } from './locate';
 import { geometryOf } from './map/geometry';
@@ -54,6 +54,26 @@ function joinPlus(ids: string[], onEdit: Props['onEdit']) {
   return ids.flatMap((m, i) => [i > 0 ? <span key={m + '+'} className="plus">+</span> : null, <Structure key={m} molId={m} onEdit={onEdit} />]);
 }
 
+/** A study table: the first cell of each row is its heading. Wide tables scroll sideways on a phone. */
+function Table({ t }: { t: StudyTable }) {
+  return (
+    <figure className="study">
+      <div className="study-scroll">
+        <table>
+          {t.caption && <caption><Rich s={t.caption} /></caption>}
+          <thead><tr>{t.head.map((h, i) => <th key={i} scope="col"><Rich s={h} /></th>)}</tr></thead>
+          <tbody>
+            {t.rows.map((r, i) => (
+              <tr key={i}>{r.map((cell, j) => (j === 0 ? <th key={j} scope="row"><Rich s={cell} /></th> : <td key={j}><Rich s={cell} /></td>))}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {t.foot && <figcaption className="foot"><Rich s={t.foot} /></figcaption>}
+    </figure>
+  );
+}
+
 /** "Plate 6 · Mitochondrion" chips that fly the map to each place something is drawn. */
 function Places({ places, onGo, label }: { places: Place[]; onGo: Props['onGo']; label: string }) {
   const seen = new Set<number>();
@@ -73,6 +93,9 @@ function Places({ places, onGo, label }: { places: Place[]; onGo: Props['onGo'];
   );
 }
 
+/** Capitals for Latin letters only: an upper-case β is a capital beta, which reads as B ("Β-OXIDATION"). */
+const latinUpper = (s: string) => s.replace(/[a-z]+/g, (w) => w.toUpperCase());
+
 /** Which exams a selection is drawn for: shared steps (citrate synthase, acetyl-CoA…) carry both badges. */
 const examsOf = (ps: Place[]): Exam[] => (['mid', 'final'] as const).filter((x) => ps.some((p) => p.exam === x));
 
@@ -80,7 +103,7 @@ function Kicker({ exams, plate, what }: { exams: Exam[]; plate?: { plate: number
   return (
     <div className="kicker">
       {exams.map((x) => <b key={x} className={`part-badge ${x}`}>{x === 'final' ? 'FINAL' : 'MIDTERM'}</b>)}
-      <span>{what}{plate ? <> · PLATE {plate.plate} · <Rich s={plate.title.toUpperCase()} /></> : null}</span>
+      <span>{what}{plate ? <> · PLATE {plate.plate} · <Rich s={latinUpper(plate.title)} /></> : null}</span>
     </div>
   );
 }
@@ -187,7 +210,8 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
         <Kicker exams={examsOf(places)} plate={here?.plate} what="OVERVIEW" />
         <h2><Rich s={c.title} /></h2>
         {c.sub && <p className="sub"><Rich s={c.sub} /></p>}
-        <ul>{c.bullets.map((b, i) => <li key={i}><Rich s={b} /></li>)}</ul>
+        {c.table?.map((t, i) => <Table key={i} t={t} />)}
+        {c.bullets.length > 0 && <ul>{c.bullets.map((b, i) => <li key={i}><Rich s={b} /></li>)}</ul>}
         {c.id === 'c_inhib' && (
           <section>
             <h3>No drawn target on this map</h3>

@@ -44,7 +44,19 @@ export const lipidCards: Card[] = [
       'Seven rounds: palmitoyl-CoA + 7 CoA + 7 FAD + 7 NAD⁺ + 7 H₂O → 8 acetyl-CoA + 7 FADH₂ + 7 NADH + 7 H⁺.',
       'Each FADH₂ yields about 1.5 ATP and each NADH about 2.5 ATP, so 4 ATP per 2-carbon unit removed.',
       'Net, including electron transfer and oxidative phosphorylation: palmitoyl-CoA + 7 CoA + 7 O₂ + 28 Pi + 28 ADP → 8 acetyl-CoA + 28 ATP + 7 H₂O. The acetyl-CoA then gives more ATP in the citric acid cycle.',
-    ], slide: S + '15' },
+    ],
+    table: [{
+      caption: 'Seven rounds of β-oxidation of palmitoyl-CoA',
+      head: ['Made', 'Number', 'ATP each', 'ATP'],
+      rows: [
+        ['FADH₂', '7', '1.5', '10.5'],
+        ['NADH', '7', '2.5', '17.5'],
+        ['β-Oxidation alone', '', '', '28'],
+        ['Acetyl-CoA', '8', '', 'more, in the citric acid cycle'],
+      ],
+      foot: 'FADH₂ passes its electrons into the respiratory chain at ubiquinone, NADH at Complex I, so each round gives 1.5 + 2.5 = 4 ATP.',
+    }],
+    slide: S + '15' },
   { id: 'l_c_unsat', title: 'Unsaturated and odd-chain fatty acids', sub: 'Why extra enzymes are needed',
     bullets: [
       'Natural unsaturated fatty acids have cis double bonds, which enoyl-CoA hydratase cannot hydrate; it only works on the trans-Δ² double bond made during β-oxidation.',
@@ -96,6 +108,24 @@ export const lipidCards: Card[] = [
       'Low blood glucose: 5) glucagon activates cAMP-dependent protein kinase (PKA); 6) PKA phosphorylates and inactivates ACC, malonyl-CoA falls and the block is relieved; 7) fatty acids enter the matrix; 8) β-oxidation provides fuel.',
       'ACC is also regulated allosterically: citrate activates it; palmitoyl-CoA, the end product, inhibits it. Glucagon and epinephrine trigger its phosphorylation (inactivation).',
     ], mols: ['cit', 'malcoa', 'palmcoa'], slide: S + '36–39' },
+  { id: 'l_c_vs', title: 'β-Oxidation vs fatty acid synthesis', sub: 'Not the reverse of each other',
+    bullets: [
+      'Synthesis and breakdown use different enzymes and happen in different places (compartmentation), so both can be controlled separately.',
+    ],
+    table: [{
+      head: ['', 'β-Oxidation', 'Fatty acid synthesis'],
+      rows: [
+        ['Where', 'Mitochondrial matrix', 'Cytosol (animals, yeast); chloroplasts in plants'],
+        ['Getting there', 'Carnitine shuttle carries fatty acyl groups into the matrix', 'Citrate shuttle carries acetyl groups out to the cytosol'],
+        ['Acyl carrier', 'Coenzyme A', 'Acyl carrier protein (ACP) of fatty acid synthase'],
+        ['Two-carbon unit', 'Removed as acetyl-CoA each round', 'Added from malonyl-ACP, releasing CO₂'],
+        ['Electron carriers', 'FAD → FADH₂ and NAD⁺ → NADH', 'NADPH → NADP⁺ (two reductions per round)'],
+        ['The four steps', 'Oxidation, hydration, oxidation, thiolysis', 'Condensation, reduction, dehydration, reduction'],
+        ['Palmitate (C₁₆)', '7 rounds → 8 acetyl-CoA', '7 rounds from 8 acetyl-CoA, using 7 ATP and 14 NADPH'],
+        ['Control point', 'Carnitine acyltransferase I, inhibited by malonyl-CoA', 'Acetyl-CoA carboxylase (citrate on, palmitoyl-CoA off; insulin on, glucagon off)'],
+      ],
+    }],
+    slide: S + '9–15, 24–32, 36–39' },
   { id: 'l_c_elong', title: 'Longer and unsaturated fatty acids', sub: 'After palmitate',
     bullets: [
       'Palmitate is the main product of fatty acid synthase and the precursor of longer saturated fatty acids such as stearate (18:0).',

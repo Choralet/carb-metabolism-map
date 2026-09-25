@@ -34,7 +34,9 @@ export interface Enzyme {
   slide: string;
 }
 
-export interface Card { id: string; title: string; sub?: string; bullets: string[]; mols?: string[]; slide: string }
+/** A study table inside a card: a header row, body rows (first cell is the row heading) and an optional footnote. */
+export interface StudyTable { caption?: string; head: string[]; rows: string[][]; foot?: string }
+export interface Card { id: string; title: string; sub?: string; bullets: string[]; mols?: string[]; table?: StudyTable[]; slide: string }
 
 export type NodeKind = 'met' | 'card' | 'proc' | 'cx' | 'etag' | 'small' | 'xref';
 export interface MapNode {

@@ -35,7 +35,17 @@ export const aminoCards: Card[] = [
       'Ammonotelic animals excrete ammonia (NH₄⁺): most aquatic vertebrates, such as bony fishes and the larvae of amphibia.',
       'Ureotelic animals excrete urea: most terrestrial vertebrates, and also sharks.',
       'Uricotelic animals excrete uric acid: birds and reptiles.',
-    ], mols: ['nh4', 'urea', 'uric'], slide: S + '9, 11' },
+    ],
+    table: [{
+      head: ['Excreted as', 'Called', 'Animals'],
+      rows: [
+        ['Ammonia (NH₄⁺)', 'ammonotelic', 'Most aquatic vertebrates, such as bony fishes and the larvae of amphibia'],
+        ['Urea', 'ureotelic', 'Many terrestrial vertebrates; also sharks'],
+        ['Uric acid', 'uricotelic', 'Birds, reptiles'],
+      ],
+      foot: 'The end product of purine breakdown varies too; see Plate 34.',
+    }],
+    mols: ['nh4', 'urea', 'uric'], slide: S + '9, 11' },
   { id: 'n_c_glnt', title: 'Glutamine carries ammonia', sub: 'Non-toxic transport in the bloodstream',
     bullets: [
       'Ammonia is quite toxic to animal tissues, and its level in blood is regulated. Most animals convert free ammonia to a non-toxic compound before exporting it from extrahepatic tissues to the liver or kidneys.',
@@ -66,7 +76,21 @@ export const aminoCards: Card[] = [
       'Glucogenic amino acids are degraded to pyruvate, α-ketoglutarate, succinyl-CoA, fumarate and/or oxaloacetate, which can be converted to glucose.',
       'Ketogenic amino acids are degraded to acetoacetyl-CoA and/or acetyl-CoA, which can be converted to ketone bodies in the liver.',
       'Several amino acids appear in both groups (for example phenylalanine, tyrosine, tryptophan, isoleucine and threonine), because different parts of their skeleton end up in different places.',
-    ], slide: S + '19' },
+    ],
+    table: [{
+      head: ['Carbon skeleton enters as', 'Amino acids', 'Group'],
+      rows: [
+        ['Acetoacetyl-CoA', 'Leu, Lys, Phe, Trp, Tyr', 'ketogenic'],
+        ['Acetyl-CoA', 'Ile, Leu, Thr, Trp', 'ketogenic'],
+        ['Pyruvate', 'Ala, Cys, Gly, Ser, Thr, Trp', 'glucogenic'],
+        ['α-Ketoglutarate (via glutamate)', 'Arg, Gln, His, Pro', 'glucogenic'],
+        ['Succinyl-CoA', 'Ile, Met, Thr, Val', 'glucogenic'],
+        ['Fumarate', 'Phe, Tyr', 'glucogenic'],
+        ['Oxaloacetate', 'Asn, Asp', 'glucogenic'],
+      ],
+      foot: 'Read down the table: Leu and Lys appear only in ketogenic rows; Ile, Phe, Thr, Trp and Tyr in both kinds.',
+    }],
+    slide: S + '19' },
 
   // ── biosynthesis ──
   { id: 'n_c_biosyn', title: 'Making amino acids', sub: 'Six families, grouped by precursor',
@@ -75,7 +99,21 @@ export const aminoCards: Card[] = [
       'Some pathways are simple; others (such as those for the aromatic amino acids) are not.',
       'Plants and bacteria make all 20 common amino acids; mammals make about half. The essential amino acids are the ones animals cannot make and must get from food.',
       'Essential in mammals (Table 22-1): methionine, threonine, lysine, valine, leucine, isoleucine, tryptophan, phenylalanine and histidine. Tyrosine is made from phenylalanine in mammals.',
-    ], slide: S + '22, 28' },
+    ],
+    table: [{
+      caption: 'Table 22-1 · biosynthetic families',
+      head: ['Precursor', 'From', 'Amino acids'],
+      rows: [
+        ['α-Ketoglutarate', 'citric acid cycle', 'Glutamate, glutamine, proline, arginine'],
+        ['3-Phosphoglycerate', 'glycolysis', 'Serine, glycine, cysteine'],
+        ['Oxaloacetate', 'citric acid cycle', 'Aspartate, asparagine, methionine*, threonine*, lysine*'],
+        ['Pyruvate', 'glycolysis', 'Alanine, valine*, leucine*, isoleucine*'],
+        ['PEP + erythrose 4-phosphate', 'glycolysis + pentose phosphate pathway', 'Tryptophan*, phenylalanine*, tyrosine†'],
+        ['Ribose 5-phosphate', 'pentose phosphate pathway', 'Histidine*'],
+      ],
+      foot: '* essential in mammals · † made from phenylalanine in mammals',
+    }],
+    slide: S + '22, 28' },
   { id: 'n_c_derived', title: 'Molecules made from amino acids', sub: 'Porphyrins, creatine, glutathione, amines, NO',
     bullets: [
       'Glycine is a precursor of porphyrins. Breakdown of iron-porphyrin (heme) gives bilirubin, which is converted to the bile pigments.',
@@ -138,7 +176,19 @@ export const aminoCards: Card[] = [
       'Purine nucleotides first lose their phosphate (5′-nucleotidase). AMP → adenosine → inosine → hypoxanthine → xanthine → uric acid; GMP → guanosine → guanine → xanthine.',
       'Uric acid is excreted by primates, birds, reptiles and insects.',
       'Other animals go further: allantoin (most mammals), allantoate (bony fishes), urea (amphibians, cartilaginous fishes) or NH₄⁺ (marine invertebrates).',
-    ], slide: S + '37' },
+    ],
+    table: [{
+      caption: 'End product of purine breakdown',
+      head: ['Excreted as', 'By', 'Last enzyme used'],
+      rows: [
+        ['Uric acid', 'Primates, birds, reptiles, insects', 'Xanthine oxidase'],
+        ['Allantoin', 'Most mammals', 'Urate oxidase'],
+        ['Allantoate', 'Bony fishes', 'Allantoinase'],
+        ['Urea', 'Amphibians, cartilaginous fishes', 'Allantoicase'],
+        ['NH₄⁺', 'Marine invertebrates', 'Urease'],
+      ],
+    }],
+    slide: S + '37' },
   { id: 'n_c_pyrcat', title: 'Pyrimidine breakdown', sub: 'Leads to NH₄⁺ and urea',
     bullets: [
       'The degradation of pyrimidines generally releases NH₄⁺, and so leads to urea synthesis.',

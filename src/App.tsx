@@ -283,7 +283,7 @@ export default function App() {
 
         <Key open={keyOpen} onToggle={() => setKeyOpen((v) => { store.set('atlas-key', v ? '0' : '1'); return !v; })} showReg={showReg} />
 
-        {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onClose={() => setPanel(null)} />}
+        {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onPick={pick} onClose={() => setPanel(null)} />}
         {panel === 'layers' && (
           <LayersPanel counts={counts} coCounts={coCounts} filter={filter} onToggle={toggle} co={co} onToggleCo={toggleCo}
             showReg={showReg} onReg={setShowReg} onClear={clearHighlights} onClose={() => setPanel(null)} />

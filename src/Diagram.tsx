@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { cardById } from './data/cards';
 import { enzById } from './data/enzymes';
 import { regBlocks } from './data/regulation';
 import { isHidden, nodeQuizKind, tagKey, type QuizState } from './quiz';
@@ -538,7 +539,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       return (
         <g key={n.id} className={`${cls} lod-mid`} data-node={n.id} {...props} transform={`translate(${n.x},${n.y})`}>
           <rect className="cardbox" x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={hh} />
-          <InfoGlyph x={-hw + 13} y={0} />
+          <InfoGlyph x={-hw + 13} y={0} table={!!cardById[n.card!]?.table} />
           <text x={-hw + 26} y={4.4} className="card-label"><Tspans s={label} size={TY.card} /></text>
         </g>
       );

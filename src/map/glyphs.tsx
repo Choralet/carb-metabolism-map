@@ -58,11 +58,13 @@ export function RegIcon({ kind }: { kind: 'act' | 'inh' }) {
 }
 
 /** The "i" of an overview note: a small serif italic i in a circle. */
-export function InfoGlyph({ x, y }: { x: number; y: number }) {
+export function InfoGlyph({ x, y, table }: { x: number; y: number; table?: boolean }) {
   return (
     <g className="iglyph" transform={`translate(${x},${y})`}>
       <circle r={7.5} />
-      <text y={4.2} textAnchor="middle">i</text>
+      {table
+        ? <path className="tglyph" d="M-4,-3.5 H4 V3.5 H-4 Z M-4,-0.6 H4 M-0.8,-3.5 V3.5" />
+        : <text y={4.2} textAnchor="middle">i</text>}
     </g>
   );
 }

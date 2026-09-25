@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
+import { cardById } from '../data/cards';
 import { classes } from '../data/enzymes';
 import { cofactors } from '../data/cofactors';
 import type { CoKey, EnzClass, Part, Region, Scene, Scope } from '../data/types';
-import type { View } from '../Diagram';
-import { regionView } from '../locate';
-import { markPath, MarkIcon, RegIcon } from '../map/glyphs';
+import type { Selection, View } from '../Diagram';
+import { bestPlace, placesOf, regionView, viewAround } from '../locate';
+import { InfoGlyph, markPath, MarkIcon, RegIcon } from '../map/glyphs';
 import { Rich } from '../rich';
 import { CloseIcon } from './icons';
 
@@ -30,12 +31,19 @@ function usePanelDismiss(onClose: () => void, ref: React.RefObject<HTMLElement |
   }, [onClose, ref]);
 }
 
-export function PlatesPanel({ scene, scope, onGo, onClose }: { scene: Scene; scope: Scope; onGo: (v: View) => void; onClose: () => void }) {
+interface PlatesProps { scene: Scene; scope: Scope; onGo: (v: View) => void; onPick: (s: Selection, v: View) => void; onClose: () => void }
+
+export function PlatesPanel({ scene, scope, onGo, onPick, onClose }: PlatesProps) {
   const ref = useRef<HTMLDivElement>(null);
   usePanelDismiss(onClose, ref);
   const parts = (['I', 'II', 'III', 'IV'] as Part[]).filter((p) => scene.regions.some((r) => r.part === p));
   const byPart = (p: Part) => scene.regions.filter((r) => r.part === p).sort((a, b) => a.plate - b.plate);
   const views = (r: Region) => scene.jumps.filter((j) => j.plate === r.id);
+  // study tables, each listed once (a table can be pinned on more than one plate), in plate order
+  const tables = [...new Set(scene.nodes.filter((n) => n.card && cardById[n.card]?.table).map((n) => n.card!))]
+    .map((id) => ({ id, card: cardById[id], place: bestPlace(placesOf({ kind: 'card', id }, scene), scope) }))
+    .filter((t) => t.place && (scope === 'both' || t.place.exam === scope))
+    .sort((a, b) => (a.place.plate?.plate ?? 0) - (b.place.plate?.plate ?? 0));
   return (
     <div className="panel plates-panel" ref={ref} role="dialog" aria-label="Plates">
       <div className="panel-head"><h2>Plates</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><CloseIcon /></button></div>
@@ -63,6 +71,21 @@ export function PlatesPanel({ scene, scope, onGo, onClose }: { scene: Scene; sco
             </section>
           );
         })}
+        {tables.length > 0 && (
+          <section className="toc-part tables">
+            <h3>Study tables</h3>
+            <ol>
+              {tables.map((t) => (
+                <li key={t.id}>
+                  <button className="toc-plate" onClick={() => onPick({ kind: 'card', id: t.id }, viewAround(t.place))}>
+                    <span className="toc-no"><svg width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true"><InfoGlyph x={0} y={0} table /></svg></span>
+                    <span className="toc-t"><Rich s={t.card.title} /><em> — Plate {t.place.plate?.plate}</em></span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
     </div>
   );

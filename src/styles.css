@@ -263,6 +263,7 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 .iglyph circle { fill: var(--mid); }
 .fin .iglyph circle { fill: var(--fin); }
 .iglyph text { font: italic 700 12px var(--f-serif); fill: var(--paper); pointer-events: none; }
+.tglyph { fill: none; stroke: var(--paper); stroke-width: 1.3; pointer-events: none; }
 .card-label { font: italic 500 13px var(--f-serif); fill: var(--mid); pointer-events: none; }
 .fin .card-label { fill: var(--fin); }
 
@@ -535,3 +536,15 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
   .rb-how { grid-column: 2; text-align: left; }
   .rb-plate { grid-row: 1; grid-column: 3; }
 }
+
+/* ── study tables (in the drawer) ─────────────────────────────────── */
+.study { margin: 14px 0 6px; }
+.study-scroll { overflow-x: auto; }
+.study table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.4; }
+/* not upper-cased: a capital β reads as B */
+.study caption { text-align: left; font: italic 500 13px var(--f-serif); color: var(--ink-3); padding: 0 0 6px; }
+.study th, .study td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--hair); }
+.study thead th { font: 600 12px var(--f-sans); color: var(--ink-2); border-bottom: 1.5px solid var(--ink-3); background: var(--paper); }
+.study tbody th { font: 600 13px var(--f-serif); color: var(--ink); width: 34%; }
+.study tbody tr:nth-child(even) td, .study tbody tr:nth-child(even) th { background: color-mix(in srgb, var(--paper) 55%, transparent); }
+.study .foot { font-size: 12px; color: var(--ink-3); margin: 6px 0 0; }
