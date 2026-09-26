@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { cardById } from '../data/cards';
 import { classes } from '../data/enzymes';
 import { cofactors } from '../data/cofactors';
-import type { CoKey, EnzClass, Part, Region, Scene, Scope } from '../data/types';
+import { inExam, type CoKey, type EnzClass, type Part, type Region, type Scene, type Scope } from '../data/types';
 import type { Selection, View } from '../Diagram';
 import { bestPlace, placesOf, regionView, viewAround } from '../locate';
 import { InfoGlyph, markPath, MarkIcon, RegIcon } from '../map/glyphs';
@@ -42,7 +42,7 @@ export function PlatesPanel({ scene, scope, onGo, onPick, onClose }: PlatesProps
   // study tables, each listed once (a table can be pinned on more than one plate), in plate order
   const tables = [...new Set(scene.nodes.filter((n) => n.card && cardById[n.card]?.table).map((n) => n.card!))]
     .map((id) => ({ id, card: cardById[id], place: bestPlace(placesOf({ kind: 'card', id }, scene), scope) }))
-    .filter((t) => t.place && (scope === 'both' || t.place.exam === scope))
+    .filter((t) => t.place && inExam(t.place.exam, scope))
     .sort((a, b) => (a.place.plate?.plate ?? 0) - (b.place.plate?.plate ?? 0));
   return (
     <div className="panel plates-panel" ref={ref} role="dialog" aria-label="Plates">
@@ -161,6 +161,14 @@ export function Key({ open, onToggle, showReg }: { open: boolean; onToggle: () =
           <div className="key-row">
             <span className="k-xref">▸ PLATE n</span>
             <span>same molecule on another plate</span>
+          </div>
+          <div className="key-row">
+            <svg width="46" height="14" aria-hidden="true"><path className="k-dot" d="M2,7 H44" /></svg>
+            <span>same molecule, drawn twice</span>
+          </div>
+          <div className="key-row">
+            <svg width="46" height="14" aria-hidden="true"><rect className="k-frame" x="2" y="1" width="42" height="12" rx="1.5" /></svg>
+            <span>another organ, or a close-up</span>
           </div>
           <div className="key-types">
             {(['kinase', 'isomerase', 'dehydrogenase', 'lyase', 'hydrolase', 'transferase', 'ligase', 'other'] as EnzClass[]).map((c) => (

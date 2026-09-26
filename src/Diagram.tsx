@@ -3,7 +3,8 @@ import { cardById } from './data/cards';
 import { enzById } from './data/enzymes';
 import { regBlocks } from './data/regulation';
 import { isHidden, nodeQuizKind, resultClass, tagKey, type QuizState } from './quiz';
-import type { CoKey, EnzClass, Edge, Exam, MapNode, Region, Scene, Scope } from './data/types';
+import { examOfSlide, type CoKey, type EnzClass, type Edge, type Exam, type ExamTag, type MapNode, type Region, type Scene, type Scope } from './data/types';
+import { onPlate } from './data/plate';
 import {
   arcGeom, clip, enzBox, geometryOf, GAP, harpoonPath, HIDDEN_BOX, labelCenter, labelOf, nodeBox, spaced, tagParts, TY,
   type Anchor, type Box, type P,
@@ -16,7 +17,7 @@ export type Selection = { kind: 'enz' | 'node' | 'card' | 'reg'; id: string } | 
 export interface View { x: number; y: number; w: number; h: number }
 
 const clsOf = (enz?: string): EnzClass[] => (enz ? enzById[enz].cls : []);
-const exOf = (x: { exam?: Exam }): Exam => x.exam ?? 'mid';
+const exOf = (x: { exam?: ExamTag }): ExamTag => x.exam ?? 'mid';
 const regionExam = (r: Region): Exam => (r.part === 'III' || r.part === 'IV' ? 'final' : 'mid');
 const PART_LABEL: Record<string, string> = { I: 'PART I · MIDTERM', II: 'PART II · MIDTERM', III: 'PART III · FINAL', IV: 'PART IV · FINAL' };
 
@@ -45,10 +46,11 @@ interface Props {
 }
 
 export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route }: Props) {
-  const { nodeMap, routed, regGeoms, plateOf, bounds, seam } = geometryOf(scene);
-  /** Widest view (map units): enough to see the whole map at once, whichever parts it has. */
-  const MAX_W = Math.max(9000, bounds.both.w + 800);
+  const { nodeMap, routed, regGeoms, plateOf, bounds } = geometryOf(scene);
+  /** Widest view (map units): enough to see the whole map at once, whichever parts it has, on a screen of any shape. */
+  const maxW = () => Math.max(9000, bounds.both.w + 800, ((bounds.both.h + 800) * size.current.w) / size.current.h);
   const { nodes, edges, regions, bands, captions, labels, decor } = scene;
+  const compartments = scene.compartments ?? [];
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
@@ -111,7 +113,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       const r = el.getBoundingClientRect();
       const v = vbRef.current;
       const f = Math.exp(ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0012));
-      const w = Math.min(Math.max(v.w * f, MIN_W), MAX_W), k = w / v.w;
+      const w = Math.min(Math.max(v.w * f, MIN_W), maxW()), k = w / v.w;
       const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
       const cx = v.x + px * v.w, cy = v.y + py * v.h;
       setVb({ x: cx - px * v.w * k, y: cy - py * v.h * k, w, h: v.h * k });
@@ -157,7 +159,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       const [a, b] = [...ptrs.current.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
       const r = el.getBoundingClientRect();
-      const w = Math.min(Math.max(g.vb.w * (g.d / dist), MIN_W), MAX_W);
+      const w = Math.min(Math.max(g.vb.w * (g.d / dist), MIN_W), maxW());
       const h = g.vb.h * (w / g.vb.w);
       // hold the document point under the pinch midpoint still
       const px = (g.cx - r.left) / r.width, py = (g.cy - r.top) / r.height;
@@ -215,7 +217,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   };
 
   const zoomBy = (f: number) => {
-    const v = vbRef.current, w = Math.min(Math.max(v.w * f, MIN_W), MAX_W), k = w / v.w;
+    const v = vbRef.current, w = Math.min(Math.max(v.w * f, MIN_W), maxW()), k = w / v.w;
     animate({ x: v.x + (v.w - v.w * k) / 2, y: v.y + (v.h - v.h * k) / 2, w, h: v.h * k });
   };
 
@@ -240,10 +242,9 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     if (id) el.querySelectorAll(`[data-enz="${id}"]`).forEach((n) => n.classList.add('hot'));
   };
 
-  // ── scope + filters ─────────────────────────────────────────────
-  /** Midterm scope drops the final plates entirely; Final scope keeps the midterm ones as dimmed context. */
-  const shown = (x: { exam?: Exam }) => scope !== 'mid' || exOf(x) === 'mid';
-  const inScope = (x: { exam?: Exam }) => scope === 'both' || exOf(x) === scope;
+  // ── exam highlight + filters ────────────────────────────────────
+  /** The exam switch only highlights: the other exam's material fades, and what both exams use stays lit. */
+  const inScope = (x: { exam?: ExamTag }) => scope === 'both' || exOf(x) === 'both' || exOf(x) === scope;
   const filtering = !!route || filter.size > 0 || co.size > 0;
   const clsOk = (e: Edge) => filter.size === 0 || clsOf(e.enz).some((c) => filter.has(c));
   const coOk = (e: Edge) => co.size === 0 || !!e.co?.some((c) => co.has(c));
@@ -265,7 +266,9 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   };
 
   const selEnz = selection?.kind === 'enz' ? selection.id : null;
-  const paper = (x: { exam?: Exam }) => (exOf(x) === 'final' ? 'fin' : 'mid');
+  /** Knockouts behind text take the colour of the plate underneath (final plates are tinted). */
+  const paperAt = (x: number, y: number) => (regions.some((r) => regionExam(r) === 'final' && onPlate(r, x, y)) ? 'fin' : 'mid');
+  const paper = (n: { x: number; y: number }) => paperAt(n.x, n.y);
   /** Reaction notes are haloed in paper colour, which is not enough over a membrane's dots: there they get a knockout. */
   const tagText = (t: string, x: number, y: number, anchor: Anchor, extra = '') => {
     const w = measure(t, TY.tag, 400, 'sans');
@@ -279,9 +282,9 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       </>
     );
   };
-  const visEdges = edges.filter(shown);
-  const visNodes = nodes.filter(shown);
-  const visRegions = regions.filter((r) => shown({ exam: regionExam(r) }));
+  const visEdges = edges;
+  const visNodes = nodes;
+  const visRegions = regions;
 
   // ── plates ──────────────────────────────────────────────────────
   const renderPlate = (r: Region) => {
@@ -291,15 +294,18 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const wTitle = measure(r.title, 20, 600, 'display');
     const wSub = r.sub ? measure(r.sub, 13, 500, 'serif', true) + 10 : 0;
     const total = wNo + wTitle + wSub;
-    const x0 = r.right ? r.x + r.w - 24 - total : r.x + 24;
+    const x0 = r.right ? r.x + r.w - 24 - total : r.x + (r.titleX ?? 24);
     const tab = PART_LABEL[r.part];
     const tabW = spaced(tab, 9.5, 500, 'mono', 0.12) + 20;
+    const rects = [r, ...(r.more ?? [])];
     return (
-      <g key={r.id} className={`plate ${ex}${inScope({ exam: ex }) ? '' : ' out'}`}>
+      <g key={r.id} className={`plate ${ex}${r.outside || r.inset ? ' outside' : ''}${inScope({ exam: ex }) ? '' : ' out'}`} data-plate={r.id}>
         <path className="plate-tab" d={`M${r.x},${r.y} v-16 h${tabW} l9,16 z`} />
         <text className="plate-tabt" x={r.x + 10} y={r.y - 4.5}>{tab}</text>
-        <rect className="plate-bg" x={r.x} y={r.y} width={r.w} height={r.h} rx={3} />
-        <rect className="plate-in" x={r.x + 6} y={r.y + 6} width={r.w - 12} height={r.h - 12} rx={2} />
+        {rects.map((q, i) => <rect key={`s${i}`} className="plate-bg edge" x={q.x} y={q.y} width={q.w} height={q.h} rx={3} />)}
+        {rects.map((q, i) => <rect key={`f${i}`} className="plate-bg fill" x={q.x} y={q.y} width={q.w} height={q.h} rx={3} />)}
+        {rects.map((q, i) => <rect key={`i${i}`} className="plate-in edge" x={q.x + 6} y={q.y + 6} width={q.w - 12} height={q.h - 12} rx={2} />)}
+        {rects.length > 1 && rects.map((q, i) => <rect key={`c${i}`} className="plate-bg fill inner" x={q.x + 7} y={q.y + 7} width={q.w - 14} height={q.h - 14} rx={2} />)}
         <g className="plate-head lod-mid">
           <text className="plate-no" x={x0} y={r.y + 36}>{no}</text>
           <text className="plate-title" x={x0 + wNo} y={r.y + 37}><Tspans s={r.title} size={20} /></text>
@@ -344,7 +350,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const clickable = !!enz && style !== 'link';
     const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
     const onRoute = !!route?.edges.has(e.id);
-    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}`;
+    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope({ exam: e.lineExam ?? e.exam }) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}`;
 
     // co-substrate curving into the label / co-product curving out of it
     const box = enz && !e.noPill && style !== 'link' ? enzBox(enz.id) : { w: 0, h: 0 };
@@ -367,7 +373,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     }
 
     return (
-      <g key={e.id} className={cls} data-enz={enz?.id}>
+      <g key={e.id} className={cls} data-enz={enz?.id} data-edge={e.id}>
         {onRoute && <path className="route-glow" d={d} />}
         {feed}
         {outLine}
@@ -396,7 +402,8 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
     const cls0 = enz ? enz.cls[0] : 'other';
     const hl = on && filter.size > 0 && clsOk(e);
-    const cls = `elabel-g ${paper(e)}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}`;
+    const pp = paperAt(L.x, L.y);
+    const cls = `elabel-g ${pp}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}`;
 
     let tag: React.JSX.Element | null = null;
     if (e.tags) {
@@ -431,10 +438,10 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     }
 
     return (
-      <g key={e.id} className={cls} data-enz={enz?.id}>
+      <g key={e.id} className={cls} data-enz={enz?.id} data-edge={e.id}>
         {tag}
         {showLabel && (
-          <g className={`elabel ${paper(e)}${hidden ? ' hidden' : ''}${sel ? ' sel' : ''}${hl ? ' hl' : ''}${resultClass(quiz, enz!.id)} lod-mid`}
+          <g className={`elabel ${pp}${hidden ? ' hidden' : ''}${sel ? ' sel' : ''}${hl ? ' hl' : ''}${resultClass(quiz, enz!.id)} lod-mid`}
             style={{ '--c': `var(--k-${cls0})` } as React.CSSProperties}
             transform={`translate(${L.x.toFixed(1)},${L.y.toFixed(1)})`}
             onClick={activate(selTarget, hidden ? enz!.id : null)} onKeyDown={onKey(selTarget, hidden ? enz!.id : null)}
@@ -561,10 +568,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   const renderReg = () => regBlocks.map((r) => {
     const g = regGeoms.get(r.id);
     if (!g) return null;
-    const anchorExam: Exam = 'edge' in r.anchor
-      ? exOf(edges.find((e) => e.id === (r.anchor as { edge: string }).edge) ?? {})
-      : exOf(nodeMap[(r.anchor as { node: string }).node] ?? {});
-    if (!shown({ exam: anchorExam })) return null;
+    const anchorExam: ExamTag = examOfSlide(r.slide);
     const box: Box = { c: g.c, hw: g.w / 2 + 6, hh: g.h / 2 + 6 };
     const from = clip(box, g.c, g.anchor);
     let to: P;
@@ -603,7 +607,6 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     );
   });
 
-  const hasFinal = regions.some((r) => regionExam(r) === 'final');
   return (
     <div className="canvas" ref={wrap}>
       <svg ref={svg} onPointerDown={onPointerDown} onClick={() => { if (!drag.current?.moved) onSelect(null); }}
@@ -634,17 +637,13 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
 
         <rect x={-20000} y={-20000} width={60000} height={60000} fill="url(#grain)" />
 
-        {hasFinal && scope !== 'mid' && seam && (
-          <g className="seam lod-mid">
-            <path d={`M${seam.x + seam.w / 2},${seam.y} V${seam.y + seam.h}`} />
-            {[0.2, 0.5, 0.8].map((k) => (
-              <g key={k}>
-                <text transform={`translate(${seam.x + seam.w / 2 - 12},${seam.y + seam.h * k}) rotate(-90)`} textAnchor="middle">◂ MIDTERM · PARTS I–II</text>
-                <text transform={`translate(${seam.x + seam.w / 2 + 12},${seam.y + seam.h * k}) rotate(90)`} textAnchor="middle">FINAL · PARTS III–IV ▸</text>
-              </g>
-            ))}
+        {compartments.map((c) => (
+          <g key={c.id} className={`compartment ${c.kind}`}>
+            <rect className="cmp-body" x={c.x} y={c.y} width={c.w} height={c.h} rx={c.kind === 'cell' ? 90 : 60} />
+            <rect className="cmp-line" x={c.x + 9} y={c.y + 9} width={c.w - 18} height={c.h - 18} rx={c.kind === 'cell' ? 82 : 52} />
+            {c.label && <text className="cmp-label lod-mid" x={c.x + (c.kind === 'cell' ? 80 : 60)} y={c.y + (c.kind === 'cell' ? -14 : c.h + 34)}>{c.label}</text>}
           </g>
-        )}
+        ))}
 
         {visRegions.map(renderPlate)}
 
@@ -694,7 +693,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
         <button onClick={() => zoomBy(1.4)} aria-label="Zoom out" title="Zoom out">
           <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8h10" /></svg>
         </button>
-        <button onClick={() => { const b = bounds[scope]; animate(fit({ x: b.x - 40, y: b.y - 40, w: b.w + 80, h: b.h + 80 })); }} aria-label="Fit the whole map" title="Whole map">
+        <button onClick={() => { const b = bounds.both; animate(fit({ x: b.x - 40, y: b.y - 40, w: b.w + 80, h: b.h + 80 })); }} aria-label="Fit the whole map" title="Whole map">
           <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" /></svg>
         </button>
       </div>

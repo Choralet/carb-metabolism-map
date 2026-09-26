@@ -1,41 +1,53 @@
-import type { Band, Caption, Edge, JumpView, Label, MapNode, Part, Region, Scene } from './types';
+import type { Band, Caption, Edge, JumpView, Label, MapNode, Part, Rect, Region, Scene } from './types';
 
 /**
- * A plate of the final-exam wing, written in its own coordinates (0,0 = the plate's top-left corner) and dropped into
- * place by `place()`, so a plate can be moved without touching its contents. Plates are kept ≤ ~1300 units wide so
- * they read on a phone without a separate layout.
+ * A section of the map (a numbered plate). Its contents are written in map coordinates, with `x`, `y` the top-left
+ * corner of its frame; `place(p, dx, dy)` shifts the whole plate, so a plate can be moved without editing its
+ * contents. Nodes and edges may refer to nodes on other plates by id: that is how the plates join into one map.
  */
 export interface PlateDef {
-  id: string; plate: number; part: Part; title: string; sub?: string; w: number; h: number;
+  id: string; plate: number; part: Part; title: string; sub?: string; x?: number; y?: number; w: number; h: number; right?: boolean; outside?: boolean; inset?: boolean; titleX?: number;
+  /** Extra rectangles (map coordinates) for an L-shaped plate. */
+  more?: Rect[];
   nodes: MapNode[]; edges: Edge[]; bands?: Band[]; captions?: Caption[]; labels?: Label[]; jumps?: JumpView[];
 }
 
-export function place(p: PlateDef, x: number, y: number): Scene {
-  const region: Region = { id: p.id, plate: p.plate, part: p.part, title: p.title, sub: p.sub, x, y, w: p.w, h: p.h };
+export function place(p: PlateDef, dx = 0, dy = 0): Scene {
+  const x = (p.x ?? 0) + dx, y = (p.y ?? 0) + dy;
+  const region: Region = {
+    id: p.id, plate: p.plate, part: p.part, title: p.title, sub: p.sub, x, y, w: p.w, h: p.h, right: p.right, outside: p.outside, inset: p.inset, titleX: p.titleX,
+    more: p.more?.map((r) => ({ ...r, x: r.x + dx, y: r.y + dy })),
+  };
   return {
     canvas: { w: x + p.w, h: y + p.h },
     regions: [region],
-    nodes: p.nodes.map((n) => ({ ...n, x: n.x + x, y: n.y + y })),
-    edges: p.edges.map((e) => (e.via ? { ...e, via: e.via.map(([a, b]) => [a + x, b + y] as [number, number]) } : e)),
-    bands: (p.bands ?? []).map((b) => ({ ...b, x: b.x + x, y: b.y + y })),
-    captions: (p.captions ?? []).map((c) => ({ ...c, x: c.x + x, y: c.y + y })),
-    labels: (p.labels ?? []).map((l) => ({ ...l, x: l.x + x, y: l.y + y })),
-    jumps: (p.jumps ?? []).map((j) => ({ ...j, x: j.x + x, y: j.y + y, plate: p.id })),
+    nodes: p.nodes.map((n) => ({ ...n, x: n.x + dx, y: n.y + dy })),
+    // every step belongs to the plate that defines it, even when it starts from a molecule on another plate
+    edges: p.edges.map((e) => ({ plate: p.id, ...e, ...(e.via ? { via: e.via.map(([a, b]) => [a + dx, b + dy] as [number, number]) } : {}) })),
+    bands: (p.bands ?? []).map((b) => ({ ...b, x: b.x + dx, y: b.y + dy })),
+    captions: (p.captions ?? []).map((c) => ({ ...c, x: c.x + dx, y: c.y + dy })),
+    labels: (p.labels ?? []).map((l) => ({ ...l, x: l.x + dx, y: l.y + dy })),
+    jumps: (p.jumps ?? []).map((j) => ({ ...j, x: j.x + dx, y: j.y + dy, plate: p.id })),
     decor: [],
   };
 }
 
-/** Several placed plates (plus loose nodes, e.g. cross-references drawn on other plates) as one scene. */
-export function combine(placed: Scene[], extra: MapNode[] = []): Scene {
+/** Several scenes as one. */
+export function combine(parts: Scene[], extra: MapNode[] = []): Scene {
   return {
-    canvas: { w: Math.max(...placed.map((s) => s.canvas.w)) + 40, h: Math.max(...placed.map((s) => s.canvas.h)) + 40 },
-    nodes: [...placed.flatMap((s) => s.nodes), ...extra],
-    edges: placed.flatMap((s) => s.edges),
-    regions: placed.flatMap((s) => s.regions),
-    bands: placed.flatMap((s) => s.bands),
-    captions: placed.flatMap((s) => s.captions),
-    labels: placed.flatMap((s) => s.labels),
-    jumps: placed.flatMap((s) => s.jumps),
-    decor: [],
+    canvas: { w: Math.max(...parts.map((s) => s.canvas.w)), h: Math.max(...parts.map((s) => s.canvas.h)) },
+    nodes: [...parts.flatMap((s) => s.nodes), ...extra],
+    edges: parts.flatMap((s) => s.edges),
+    regions: parts.flatMap((s) => s.regions),
+    bands: parts.flatMap((s) => s.bands),
+    captions: parts.flatMap((s) => s.captions),
+    labels: parts.flatMap((s) => s.labels),
+    jumps: parts.flatMap((s) => s.jumps),
+    decor: parts.flatMap((s) => s.decor),
+    compartments: parts.flatMap((s) => s.compartments ?? []),
   };
 }
+
+/** Whether a point lies on a plate (any of its rectangles). */
+export const onPlate = (r: Region, x: number, y: number) =>
+  [r, ...(r.more ?? [])].some((q) => x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h);

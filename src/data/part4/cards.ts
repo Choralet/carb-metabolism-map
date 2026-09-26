@@ -43,7 +43,7 @@ export const aminoCards: Card[] = [
         ['Urea', 'ureotelic', 'Many terrestrial vertebrates; also sharks'],
         ['Uric acid', 'uricotelic', 'Birds, reptiles'],
       ],
-      foot: 'The end product of purine breakdown varies too; see Plate 34.',
+      foot: 'The end product of purine breakdown varies too; see the Purine breakdown plate.',
     }],
     mols: ['nh4', 'urea', 'uric'], slide: S + '9, 11' },
   { id: 'n_c_glnt', title: 'Glutamine carries ammonia', sub: 'Non-toxic transport in the bloodstream',
@@ -70,6 +70,7 @@ export const aminoCards: Card[] = [
     bullets: [
       'Fumarate from the urea cycle can be converted to malate and oxaloacetate in the cytosol, and used there or carried into the mitochondria for the citric acid cycle.',
       'The shunt makes aspartate by transamination between oxaloacetate and glutamate. Aspartate then donates nitrogen to the urea cycle in the argininosuccinate synthetase reaction.',
+      'The slide’s bullet runs the cytosolic steps malate → oxaloacetate; its figure runs them the other way, aspartate → oxaloacetate → malate (the malate–aspartate shuttle’s cytosolic half). Both enzymes are reversible, so the map draws both directions.',
     ], slide: S + '18' },
   { id: 'n_c_gluco', title: 'Glucogenic and ketogenic', sub: 'Grouped by the end product of their carbon skeleton',
     bullets: [

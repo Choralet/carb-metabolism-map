@@ -9,7 +9,28 @@ The lecture decks are called **Parts**, and each Part is drawn as numbered **pla
 | I | glycolysis, gluconeogenesis, pentose phosphate pathway, glycogen | midterm | 1–8 (I and II together) |
 | II | citric acid cycle, oxidative phosphorylation | midterm | |
 | III | lipid metabolism | final | 9–19 |
-| IV | metabolism of N-containing compounds | final | 20–35 |
+| IV | metabolism of N-containing compounds | final | 20–34 |
+
+**The map is one cell** (`src/data/atlas.ts`), and the plates tile it:
+- Carbohydrates run down the middle; glycolysis is the spine at x = 5600.
+- Lipids sit to the left, nitrogen metabolism to the right, and amino acid synthesis and nucleotides further right.
+- The mitochondrion fills the lower left. Its double membrane is drawn wide along the top edge (y 2560–2850: outer membrane, intermembrane space, inner membrane) and down the right edge (x 7500–7790); every step with a named transporter crosses one of those two edges. Elsewhere it is the thin double outline (ketone bodies leave through the bottom).
+- Put each step in the compartment where it happens, even on a midterm plate: pyruvate carboxylase works in the matrix, so gluconeogenic bypass 1 dips into the mitochondrion and its oxaloacetate comes back out as malate.
+- Side panels outside the cell (dashed frames, `outside: true`) hold what happens elsewhere: digestion, ketone bodies as fuel, the glucose–alanine cycle.
+- The two NADH shuttles (plates 7–8) are close-ups of a stretch of inner membrane with its own matrix side, so they are insets below the mitochondrion (dashed frames, `inset: true`), not drawn in place.
+
+Pathways join where they share a molecule, and they are drawn once:
+- β-oxidation hands its acetyl-CoA to the citric acid cycle's `accoa`.
+- Glycerol 3-phosphate is made from glycolysis's `dhap`.
+- Glutamate dehydrogenase feeds the cycle's `akg`.
+- The amino-acid "carbon skeleton" boxes point at the real cycle intermediates.
+
+**The exam switch only highlights.** Midterm / Final / Both never hides or moves anything; the other exam's material fades. What counts as final is what the final slides show:
+- A midterm step a final slide names (e.g. pyruvate carboxylase, Part III slide 41) is listed in `SHARED` in `atlas.ts` and becomes `'both'`.
+- A midterm arrow a final slide draws without naming its enzyme (the citric acid cycle on Part IV slide 19) is listed in `SHARED_LINES`: the arrow stays lit in Final (`lineExam: 'both'`), but its enzyme name and cofactors stay midterm and are not in the Final quiz.
+- `scene.ts` marks a molecule `'both'` when arrows of both exams touch it, so it stays lit either way; a cross-reference note follows its molecule.
+- A regulation box follows its own citation (`examOfSlide`), not its arrow.
+- The validator checks each step against its enzyme's citations: a final step's enzyme must cite Part III or IV, a shared one both.
 
 ## Commands
 - `npm run dev` — dev server.
@@ -19,7 +40,10 @@ The lecture decks are called **Parts**, and each Part is drawn as numbered **pla
   - **Run it after adding or changing any SMILES.** A missing drawing fails the check.
 - `npm run preview` — serves `dist/`, for looking at a built site in a browser.
 - `npm test` — unit tests (Node's built-in runner; `tests/*.test.mjs`, currently the quiz grader).
-- `npm run test:e2e` — browser tests against the build (run `npm run build` first). `tests/e2e/run.mjs` serves `dist/` with `vite preview` and runs each suite (`smoke.mjs`, `links.mjs`) in one Chromium.
+- `npm run test:e2e` — browser tests against the build (run `npm run build` first). `tests/e2e/run.mjs` serves `dist/` with `vite preview` and runs each suite in one Chromium:
+  - `smoke.mjs` — main features;
+  - `links.mjs` — deep links and history;
+  - `layout.mjs` — **no label may overlap another label or cross an arrow**, plate tabs and membrane captions included. It measures every label from the browser's own layout and names both parties and the map position of any collision.
   - **Browser choice:** `CHROMIUM_PATH` if set, else an installed Google Chrome, else Playwright's own build (`npx playwright-core install chromium`).
   - `HEADED=1` shows the window.
 
@@ -27,7 +51,7 @@ The lecture decks are called **Parts**, and each Part is drawn as numbered **pla
 
 ## Where things live
 ```
-src/data/        all content (below); scene.ts assembles the map
+src/data/        all content (below); atlas.ts arranges the one-cell map, scene.ts tags exams
 src/map/         geometry.ts (text-measured boxes, arrow routing, cofactor arcs; cached per scene) · glyphs.tsx
 src/Diagram.tsx  the SVG map: camera, detail by zoom level, rendering, quiz / route / highlight states
 src/Drawer.tsx   details panel (enzyme, molecule, card, regulation), structure drawings, study tables
@@ -43,9 +67,15 @@ tests/           grade.test.mjs (unit) · e2e/ (browser suites and their runner)
 Data (`src/data/`):
 - `types.ts` — every data type. Read it first.
 - **Registries:** `molecules.ts`, `enzymes.ts`, `cards.ts`, `regulation.ts`, `cofactors.ts`. The Part III and IV entries live in `part3/` and `part4/` and are spread into these.
-- `layout.ts` — midterm plates 1–8, placed by hand in absolute coordinates. It also exports a **phone scene** that re-lays out only plates 7–8 (the NADH shuttles).
-- `part3/layout.ts`, `part4/layout.ts` — the final plates. Each is a `PlateDef` written in local coordinates and positioned with `place(p, x, y)` from `plate.ts`.
-- `scene.ts` — merges the midterm and final parts, and tags final content with `exam: 'final'`. Never set `exam` by hand.
+- `layout.ts` — midterm plates 1–8 in map coordinates (carbohydrates, the citric acid cycle, the respiratory chain, the two NADH shuttles).
+- `part3/layout.ts`, `part4/layout.ts` — the final plates, as `PlateDef`s (`plate.ts`):
+  - The ones that join other pathways are written in map coordinates, with `x`/`y` giving the frame's corner.
+  - The biosynthesis, nucleotide and side-panel plates are in their own coordinates, and `atlas.ts` places them.
+  - `place(p, dx, dy)` shifts either kind as a whole.
+- `atlas.ts` — the arrangement: where each plate goes, the cell and mitochondrion (`compartments`), the membrane bands and their captions, and the midterm steps and arrows the final slides show too (`SHARED`, `SHARED_LINES`).
+- `scene.ts` — derives each molecule's exam from the arrows that touch it. Final plates are tagged `exam: 'final'` in `atlas.ts`; don't set `exam` by hand except through `SHARED` / `SHARED_LINES`.
+- `moved.ts` — node ids removed since they were published, and the node that replaced each (old `#mol/` links and saved quiz answers follow it).
+- One scene serves desktop and phone; plates stay at most ~1300 units wide.
 - `pools.ts` — the route tracer's compartment splits (see Recipes).
 - `chem.ts` — `cx()`, which builds SMILES with labelled pseudo-atoms (R, CoA, ACP).
 - `structures.json` — generated. Don't edit it by hand.
@@ -55,13 +85,13 @@ Data (`src/data/`):
 - **Cite every source.** Every enzyme, card and regulation block carries `slide`, e.g. `'Part III · slide 12'`. Use the prefix constants (`S`, `P1`, `P2`, `P3`) at the top of each file. The validator rejects a missing citation.
 - **Figure beats bullet.** Where a slide's bullet and its figure disagree, follow the figure and say so in the item's text. Known cases, not to be "fixed":
   - Part III: slide 7 (lipoprotein lipase products), slide 8 (TPI acts on DHAP), slide 13 ("enol-" vs "enoyl-CoA hydratase"), slide 18 ("trans-Δ³" should be trans-Δ²), slide 22 ("90 mg/mL"), slide 35 (the polyunsaturated fatty acid bullet vs the figure).
-  - Part IV: slide 31 (N¹⁰-formyl-THF is the formyl donor), slide 36 (adenine, not adenosine).
+  - Part IV: slide 18 (the cytosolic malate ⇌ oxaloacetate ⇌ aspartate steps run one way in the bullet and the other in the figure; both are reversible, so both directions are drawn), slide 31 (N¹⁰-formyl-THF is the formyl donor), slide 36 (adenine, not adenosine).
 - **Unnamed enzymes become summary arrows.** Either an enzyme entry with `cls: ['other']` (e.g. "Ketone body formation"), or a `style: 'plain'` edge whose note is `tags` with `plainTag: true`.
 - **`cls` follows the EC number.** It is the enzyme type and drives the colour/shape highlight. When the name suggests another class, keep the EC class and explain it in `text`. Precedents: PEPCK, citrate lyase, cystathionine β-synthase, IMP synthase, FGAR and XMP amidotransferases, O-acetylserine lyase.
 - **`rev`:** `true` = reversible, `false` = irreversible in cells, `null` = the slides don't say.
 - **Write chemistry in Unicode:** CO₂, NAD⁺, HCO₃⁻, Δ⁹,¹², N⁵,N¹⁰. The fonts have no ⁺ ⁻ ₂ glyphs, so the renderer draws them as shifted regular characters.
 - **Never upper-case Greek letters,** with `toUpperCase()` or with CSS `text-transform: uppercase`, on any text that can contain β. A capital beta renders as "B" ("Β-OXIDATION").
-- **Ids are permanent.** Quiz progress (`localStorage 'atlas-quiz'`), deep links (`#enz/cs`) and route pools all key on them.
+- **Ids are permanent.** Quiz progress (`localStorage 'atlas-quiz'`), deep links (`#enz/cs`) and route pools all key on them. If a node must go (a copy merged into its hub), add it to `moved.ts` with the node that replaces it.
 
 ## Recipes
 
@@ -90,7 +120,7 @@ Data (`src/data/`):
 - **`dir: 'both'`** marks the step reversible: it is drawn as harpoons, and the route tracer may run it backwards.
 - **Side arrows and routing:**
   - `feed` is a co-substrate curving into the label; `out` is a co-product leaving it.
-  - `via` lists waypoints (plate-local inside a `PlateDef`).
+  - `via` lists waypoints, in the same coordinates as the plate's nodes.
   - `t` sets where along the path the label sits.
   - `off` offsets the arrow sideways, for two arrows between the same pair of nodes.
 - **`style`:** `'gng'` is dashed (gluconeogenesis), `'plain'` is a summary or transport arrow, `'link'` is a dotted connector.
@@ -105,15 +135,27 @@ Data (`src/data/`):
   - `'xref'`: a cross-reference. `link` is the local anchor and `target` is the node elsewhere; the "▸ PLATE n · FINAL" line is computed.
 - `badge` adds a small note after the label.
 
-### Plate (final exam)
-1. Write a `PlateDef` in `part3/` or `part4/layout.ts`, in local coordinates (0,0 = top-left corner).
-2. Add it to `placed` with `place(p, x, y)`.
+### Plate
+1. Write a `PlateDef` in `part3/` or `part4/layout.ts`.
+   - Joining existing pathways: use map coordinates (set `x`, `y`).
+   - Self-contained: use its own coordinates and add it to `placed` in `atlas.ts`.
+2. Find free room first; the validator rejects plates that overlap.
+   - A plate may be L-shaped: `more` adds rectangles, and they are drawn with one outline (the urea cycle straddles the membrane this way).
+   - If an arrow enters through the title bar, move the title with `titleX` or `right: true`.
 3. Keep plates at most ~1300 units wide, so they fit a phone screen.
-4. Keep plate numbers unique. Final plates must sit at least 60 units right of the midterm area. Current columns: Part III at x ≈ 2600–6940, Part IV at x ≈ 7100–15960.
-5. Draw membranes as `bands`, compartment names as `captions`, and side headings as `labels` (`kind: 'phase'`).
+4. Keep plate numbers unique and in lecture order (by the first slide each plate draws). Something that happens outside the cell goes in a side panel (`outside: true`) beyond the cell's edge; a close-up that cannot be drawn in place is an `inset`.
+   - A step belongs to the plate that defines it (`place()` stamps `plate` on its edges), even when it starts from a hub on another plate: that is the plate "This plate" quizzes it on and the drawer names. Still put its label on its own plate (`t`), so the drawing agrees. A midterm step whose label sits on another plate sets `plate` by hand (`e_pc`).
+5. Draw local membranes as `bands`, compartment names as `captions`, and side headings as `labels` (`kind: 'phase'`). The mitochondrion's own membranes are already there. A step that crosses a membrane should put its transporter label on the membrane: set `t` on the edge.
 
-### Cross-reference drawn on another plate
-Examples include a midterm molecule pointing into Part IV. These go in the part's `midXrefs` / `outsideXrefs`, in **absolute** coordinates. Midterm plates 1–6 sit in the same place in the phone scene; plates 7–8 do not, so don't anchor there.
+### Joining pathways (hub molecules)
+A molecule that several pathways use is drawn once per compartment, and every pathway points at that node by id: `accoa` (matrix acetyl-CoA), `lf_accoa` (cytosolic acetyl-CoA), `pyr`, `dhap`, `pg3`, `oaa`, `akg`, `succoa`, `fum`, `cit`, `lt_facoa` (cytosolic fatty acyl-CoA), `nu_glu` (matrix glutamate), `np_imp`, `nsg_ser`, `nsg_gly`. Arrows may cross plate boundaries.
+- Where one node would tangle the arrows, draw a copy, and choose how to join it to the hub:
+  - Nearby: an arrow with `style: 'link'` (a dotted line). The validator checks that both ends draw the same molecule.
+  - Far away: an `xref` node, a note that flies the camera there.
+- A copy in the other compartment is a different pool: list it in `pools.ts`.
+
+### Cross-reference
+An `xref` node is a note beside a molecule: `link` is the local anchor, and `target` is the node to fly to. Use it only for far-apart relations; a real arrow or a dotted link is better when the two are close.
 
 ### Regulation box
 - Goes in the part's `regulation.ts`, with `id: 'r_' + enzymeId`. The drawer finds it by that id.
@@ -140,7 +182,8 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
 - **Structure drawings:**
   - Bonds are drawn in a coordinate system scaled ×100, so `gen-structures.mjs` keeps three decimals there. Rounding harder erases the bonds.
   - The drawings are one ~1.8 MB chunk, cached for offline use. The PWA cache limit is 3 MiB, set in `vite.config.ts`.
-- **Phones:** `PHONE_QUERY` (max-width 720px) switches to the phone scene. Jumping to a plate opens it at reading size (`regionView`).
+- **Phones:** `PHONE_QUERY` (max-width 720px) changes camera framing only: the map opens at the top of glycolysis at reading size, and jumping to a plate opens its top-left at reading size (`regionView`). A desktop opens on the whole cell.
+- **The exam switch** (`inExam(tag, scope)` in `types.ts`) decides what fades. The quiz, the highlight counts and search ranking follow it. Routes always search the whole map. The drawer is coloured by the item's own exam, so a final card on a midterm plate reads as final.
 - **Deep links:**
   - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`.
   - Opening the drawer pushes one history entry and switching selections replaces it, so Back closes the drawer. Keep that behaviour.
@@ -154,6 +197,6 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
    - When you rename or move something a check names, update that check.
 3. Look at what you changed in a browser, at reading zoom:
    - on desktop and on a phone-sized (~390 px) window;
-   - in light and dark mode;
-   - checking that labels don't collide with arrows, cofactor arcs or membranes.
+   - in light and dark mode.
+   The layout suite catches labels that collide with each other or with arrows. It does not catch labels on a membrane, or plates that merely feel crowded, so still look.
 4. Write commit messages with an imperative subject line, then a short body saying what changed and why.

@@ -9,11 +9,12 @@ export default async function smoke({ browser, base, check: ok }) {
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-  const viewX = async () => +(await p.locator('svg[data-lod]').getAttribute('viewBox')).split(' ')[0];
 
   await p.goto(base, { waitUntil: 'networkidle' });
   await p.waitForSelector('svg[data-lod]');
   ok((await p.title()) === 'Metabolism Atlas', 'title');
+  const [, , vw0] = (await p.locator('svg[data-lod]').getAttribute('viewBox')).split(' ').map(Number);
+  ok(vw0 > 9000, `a desktop opens on the whole cell (view ${Math.round(vw0)} units wide)`);
   ok(await p.locator('text=Metabolism').first().isVisible(), 'brand visible');
 
   // search → drawer
@@ -56,27 +57,43 @@ export default async function smoke({ browser, base, check: ok }) {
   await p.locator('.hl-bar .text-btn').click();
   ok(!(await p.locator('.hl-bar').count()), 'Clear removes highlights');
 
-  // scope
+  // the exam switch only highlights: nothing leaves the map, the other exam fades, and the camera stays put
+  const vb0 = await p.locator('svg[data-lod]').getAttribute('viewBox');
   await p.locator('.scope button', { hasText: 'Final' }).click();
   await p.waitForTimeout(300);
   const midPlates = await p.locator('g.plate:not(.final)').count(), midOut = await p.locator('g.plate.out:not(.final)').count();
   const finPlates = await p.locator('g.plate.final').count(), finOut = await p.locator('g.plate.final.out').count();
-  ok(midOut === midPlates && midPlates > 0, `Final scope dims all midterm plates (${midOut}/${midPlates})`);
-  ok(finPlates === finalPlates && finOut === 0, `Final scope shows every final plate undimmed (${finPlates}/${finalPlates})`);
+  ok(midOut === midPlates && midPlates > 0, `Final fades every midterm plate (${midOut}/${midPlates})`);
+  ok(finPlates === finalPlates && finOut === 0, `Final keeps every final plate at full strength (${finPlates}/${finalPlates})`);
+  ok(!(await p.locator('[data-node="accoa"].out').count()), 'a molecule both exams use (acetyl-CoA) stays lit in Final');
+  ok((await p.locator('[data-edge="e_hk"].out').count()) > 0, 'a midterm-only step (hexokinase) fades in Final');
+  ok(!(await p.locator('[data-edge="e_pc"].out').count()), 'a step both exams name (pyruvate carboxylase, Part III slide 41) stays lit in Final');
+  // Part IV slide 19 draws the citric acid cycle without naming its enzymes
+  ok(!(await p.locator('g.eline[data-edge="e_idh"].out').count()) && (await p.locator('g.elabel-g[data-edge="e_idh"].out').count()) === 1,
+    'Final keeps the citric acid cycle\'s arrows lit but fades their midterm enzyme names');
+  ok((await p.locator('g.reg.out[aria-label="Regulation of Citrate synthase"]').count()) === 1, 'a shared step\'s regulation (Part II) fades in Final');
+  ok((await p.locator('svg[data-lod]').getAttribute('viewBox')) === vb0, 'switching exams does not move the camera');
   await p.locator('.scope button', { hasText: 'Midterm' }).click();
   await p.waitForTimeout(300);
-  ok((await p.locator('g.plate.out').count()) === 0, 'Midterm scope: no plate dimmed');
-  ok((await p.locator('g.plate.final').count()) === 0, 'Midterm scope hides the final plates');
+  ok((await p.locator('g.plate.final').count()) === finalPlates, 'Midterm keeps the final plates on the map');
+  ok((await p.locator('g.plate.final.out').count()) === finalPlates && !(await p.locator('g.plate.out:not(.final)').count()), 'Midterm fades the final plates only');
   await p.locator('.scope button', { hasText: 'Both' }).click();
   await p.waitForTimeout(300);
+  ok(!(await p.locator('g.plate.out').count()), 'Both: nothing faded');
 
-  // cross-references fly to their target plate
-  await p.locator('g.kind-xref', { hasText: 'also from β-oxidation' }).first().dispatchEvent('click');
+  // the pathways join: β-oxidation hands acetyl-CoA to the cycle, glycerol 3-phosphate is made from glycolysis's DHAP
+  ok((await p.locator('[data-edge="e_lb4"]').count()) === 2 && !!(await p.evaluate(() => document.querySelector('[data-edge="e_lb4"] path.feedline'))), 'thiolase hands acetyl-CoA to the citric acid cycle');
+
+  // cross-references fly to their target
+  const viewXY = async () => { const [x, y, w, h] = (await p.locator('svg[data-lod]').getAttribute('viewBox')).split(' ').map(Number); return [x + w / 2, y + h / 2]; };
+  await p.locator('g.kind-xref', { hasText: 'same steps as β-oxidation' }).first().dispatchEvent('click');
   await p.waitForTimeout(900);
-  ok((await viewX()) > 3000, `xref "also from β-oxidation" flies to Plate 12 (viewBox x ${Math.round(await viewX())})`);
-  await p.locator('g.kind-xref', { hasText: 'amino-group acceptor in transamination' }).first().dispatchEvent('click');
+  const [bx, by] = await viewXY();
+  ok(Math.abs(bx - 4130) < 60 && Math.abs(by - 3520) < 60, `note "same steps as β-oxidation" flies to the β-oxidation loop (${Math.round(bx)}, ${Math.round(by)})`);
+  await p.locator('g.kind-xref', { hasText: 'or into the citric acid cycle' }).first().dispatchEvent('click');
   await p.waitForTimeout(900);
-  ok((await viewX()) > 6800, `xref on α-ketoglutarate flies to Plate 21 (viewBox x ${Math.round(await viewX())})`);
+  const [mx, my] = await viewXY();
+  ok(Math.abs(mx - 5550) < 60 && Math.abs(my - 3900) < 60, `note on the urea cycle's malate flies to the cycle's malate (${Math.round(mx)}, ${Math.round(my)})`);
 
   // search reaches Parts III and IV
   for (const [q, want, part] of [['carnitine acyl', /Carnitine acyltransferase/, 'III'], ['argininosuccinate synth', /Argininosuccinate synthetase/, 'IV']]) {
@@ -164,7 +181,10 @@ export default async function smoke({ browser, base, check: ok }) {
   const t1 = await p.evaluate(() => document.documentElement.dataset.theme);
   ok(t0 !== t1, `theme toggles (${t0} → ${t1})`);
 
-  // keyboard access to a map label
+  // keyboard access to a map label (zoom in first: the whole-map view shows plate titles, not labels)
+  await p.click('button[data-panel-toggle][title^="Plates"]');
+  await p.locator('.toc-views button', { hasText: 'Glycolysis 1–5' }).click();
+  await p.waitForTimeout(700);
   await p.locator('g.elabel[aria-label="Hexokinase"]').first().focus();
   await p.keyboard.press('Enter');
   await p.waitForTimeout(300);

@@ -9,6 +9,10 @@ import { cards } from '../src/data/cards.ts';
 import { regBlocks } from '../src/data/regulation.ts';
 import { cofactors } from '../src/data/cofactors.ts';
 import { POOL } from '../src/data/pools.ts';
+import { onPlate } from '../src/data/plate.ts';
+import { SHARED, SHARED_LINES } from '../src/data/atlas.ts';
+import { MOVED_NODES } from '../src/data/moved.ts';
+import { examOfSlide } from '../src/data/types.ts';
 
 const errors = [];
 const warnings = [];
@@ -42,6 +46,7 @@ for (const c of cards) {
   for (const m of c.mols ?? []) if (!mol.has(m)) err(`card ${c.id}: unknown molecule "${m}"`);
 }
 for (const r of regBlocks) if (!r.slide?.trim()) err(`regulation ${r.id}: no slide citation`);
+for (const m of molecules) if (m.isA && !mol.has(m.isA)) err(`molecule ${m.id}: isA names unknown molecule "${m.isA}"`);
 
 function checkScene(scene, name) {
   const nodes = byId(scene.nodes, `${name} node`);
@@ -52,7 +57,7 @@ function checkScene(scene, name) {
     if (plates.has(r.plate)) err(`${name}: plate number ${r.plate} used by ${plates.get(r.plate)} and ${r.id}`);
     plates.set(r.plate, r.id);
   }
-  const inside = (p) => scene.regions.find((r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+  const inside = (p) => scene.regions.find((r) => onPlate(r, p.x, p.y));
   for (const n of scene.nodes) {
     const at = `${name} node ${n.id}`;
     if (n.mol && !mol.has(n.mol)) err(`${at}: unknown molecule "${n.mol}"`);
@@ -77,24 +82,50 @@ function checkScene(scene, name) {
     for (const c of e.co ?? []) if (!coIds.has(c)) err(`${at}: unknown cofactor "${c}"`);
     if (e.tags && e.tags.includes('→') && e.tags.replace('→', '').trim() === '') err(`${at}: empty reaction label`);
     if (e.from === e.to) err(`${at}: starts and ends at the same node`);
+    if (e.plate && !regions.has(e.plate)) err(`${at}: belongs to unknown plate "${e.plate}"`);
+    // a dotted link says "this is the same molecule", so both ends must draw it (a node may draw several)
+    if (e.style === 'link' && nodes.has(e.from) && nodes.has(e.to)) {
+      const mols = (n) => (n.mol ? [n.mol] : n.mols ?? []);
+      const a = mols(nodes.get(e.from)), b = mols(nodes.get(e.to));
+      if (a.length && b.length && !a.some((m) => b.includes(m))) err(`${at}: dotted link joins different molecules (${a.join('+')}, ${b.join('+')})`);
+    }
+    // a step's exam follows the slides its enzyme is cited from: a final step's enzyme cites Part III or IV, and so on
+    if (e.enz && enz.has(e.enz)) {
+      const cited = examOfSlide(enz.get(e.enz).slide), exam = e.exam ?? 'mid';
+      if (cited !== 'both' && exam !== cited) err(`${at}: a ${exam === 'both' ? 'shared' : exam} step, but ${e.enz} is cited only from ${cited === 'mid' ? 'Parts I–II' : 'Parts III–IV'}`);
+    }
   }
   for (const j of scene.jumps) if (j.plate && !regions.has(j.plate)) err(`${name} view ${j.id}: unknown plate "${j.plate}"`);
   for (const r of regBlocks) {
     const ok = 'edge' in r.anchor ? scene.edges.some((e) => e.id === r.anchor.edge) : nodes.has(r.anchor.node);
     if (!ok) err(`${name}: regulation ${r.id} is anchored to something not on the map`);
   }
-  // final plates live in their own wing to the right of the midterm map
-  const mid = scene.regions.filter((r) => r.part === 'I' || r.part === 'II');
-  const fin = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV');
-  if (mid.length && fin.length) {
-    const edge = Math.max(...mid.map((r) => r.x + r.w));
-    for (const r of fin) if (r.x < edge + 60) err(`${name}: final plate ${r.id} starts at x=${r.x}, inside the midterm area (ends at ${edge})`);
+  // plates tile the map: their rectangles must not overlap
+  const rects = scene.regions.flatMap((r) => [r, ...(r.more ?? [])].map((q) => ({ id: r.id, ...q })));
+  for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+    const a = rects[i], b = rects[j];
+    if (a.id === b.id) continue;
+    if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) err(`${name}: plates ${a.id} and ${b.id} overlap`);
   }
   return nodes;
 }
 
 const deskNodes = checkScene(desktopScene, 'desktop');
-checkScene(phoneScene, 'phone');
+
+// steps shared by both exams (atlas.ts) are midterm steps that exist
+const deskEdges = new Map(desktopScene.edges.map((e) => [e.id, e]));
+for (const id of [...SHARED, ...SHARED_LINES]) {
+  const e = deskEdges.get(id);
+  const home = e?.plate && desktopScene.regions.find((r) => r.id === e.plate);
+  if (!e) err(`atlas.ts: shared step "${id}" is not on the map`);
+  else if (home && (home.part === 'III' || home.part === 'IV')) err(`atlas.ts: shared step "${id}" belongs to a final plate; only midterm steps are shared`);
+}
+// removed node ids point at the node that replaced them, and never shadow a live one
+for (const [from, to] of MOVED_NODES) {
+  if (deskNodes.has(from)) err(`moved.ts: "${from}" is still a node on the map`);
+  if (!deskNodes.has(to)) err(`moved.ts: "${from}" moves to unknown node "${to}"`);
+}
+if (phoneScene !== desktopScene) checkScene(phoneScene, 'phone');
 
 // everything defined should be drawn somewhere
 const usedEnz = new Set([...desktopScene.edges.map((e) => e.enz), ...desktopScene.nodes.map((n) => n.enz)].filter(Boolean));

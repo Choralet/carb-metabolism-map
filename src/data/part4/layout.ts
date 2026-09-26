@@ -1,14 +1,121 @@
-import type { MapNode } from '../types';
-import { combine, place, type PlateDef } from '../plate.ts';
+import type { MapNode, Edge } from '../types';
+import type { PlateDef } from '../plate.ts';
 
 /**
- * Part IV (metabolism of N-containing compounds) plates 20–35, to the right of Part III: amino acid breakdown and
- * nitrogen disposal, amino acid synthesis and derived molecules, then nucleotides.
+ * Part IV (metabolism of N-containing compounds), drawn into the one-cell map (see atlas.ts).
+ *
+ * Nitrogen leaves amino acids by transamination (cytosol, right of the mitochondrion), enters the matrix as glutamate,
+ * and glutamate dehydrogenase hands α-ketoglutarate straight to the citric acid cycle's `akg` and NH₄⁺ to the urea
+ * cycle. The urea cycle straddles the mitochondrion's top membrane (citrulline out, ornithine in, aspartate out), so
+ * its plate is L-shaped. The fates of the carbon skeletons are boxes pointing at the real cycle intermediates.
+ *
+ * Plates written with `x`/`y` are in map coordinates; the others (biosynthesis, nucleotides, side panels) are in their
+ * own coordinates and placed by atlas.ts.
  */
 
+// ───────── Plate 21 · removing the amino group (slides 7–11): transamination in the cytosol ─────────
+export const p21: PlateDef = {
+  id: 'r_n21', plate: 21, part: 'IV', title: 'Removing the amino group', sub: 'transamination', x: 7810, y: 3160, w: 1220, h: 1260,
+  nodes: [
+    { id: 'nt_aa', x: 8350, y: 3330, mol: 'aa' },
+    { id: 'nt_ak', x: 8350, y: 3640, mol: 'aketo' },
+    { id: 'nt_glu', x: 7960, y: 3900, mol: 'glu', label: 'L-Glutamate' },
+    { id: 'nt_x0', x: 8560, y: 3334, kind: 'xref', link: 'nt_aa', target: 'nd_aa', label: 'from digested protein' },
+    { id: 'nt_x1', x: 8350, y: 3726, kind: 'xref', link: 'nt_ak', target: 'n_c_gluco', label: 'carbon skeletons → citric acid cycle' },
+    { id: 'n_c_circum', x: 8760, y: 4040, kind: 'card', card: 'n_c_circum', label: 'Three circumstances' },
+    { id: 'n_c_overview', x: 8760, y: 4100, kind: 'card', card: 'n_c_overview', label: 'Overview' },
+    { id: 'n_c_collect', x: 8760, y: 4160, kind: 'card', card: 'n_c_collect', label: 'Collection points' },
+    { id: 'n_c_excrete', x: 8700, y: 4250, kind: 'card', card: 'n_c_excrete', label: 'Ammonia, urea or uric acid' },
+  ],
+  edges: [
+    { id: 'e_nt1', from: 'nt_aa', to: 'nt_ak', enz: 'n_at', dir: 'both', tags: '+ α-Ketoglutarate', tagPos: 'r', out: 'nt_glu', co: ['PLP'] },
+    { id: 'e_nt3', from: 'nt_glu', to: 'nu_glu', style: 'plain', tags: 'into liver mitochondria', tagPos: 'above', plainTag: true },
+  ],
+  labels: [{ x: 7860, y: 3240, kind: 'phase', text: 'Cytosol', sub: ['hepatocyte'] }],
+};
+
+// ───────── Plate 23 · the urea cycle (slides 14–18), across the mitochondrion's top membrane ─────────
+// Matrix steps sit in the strip right of the citric acid cycle; the cytosolic half above the membrane. L-shaped plate.
+export const p23: PlateDef = {
+  id: 'r_n23', plate: 23, part: 'IV', title: 'Urea cycle', sub: 'liver: mitochondria and cytosol', x: 7000, y: 1520, w: 1400, h: 1020,
+  more: [{ x: 7000, y: 2520, w: 480, h: 640 }, { x: 6720, y: 3150, w: 760, h: 1270 }],
+  nodes: [
+    // cytosol: the cycle runs up from citrulline, over the top and back down to ornithine; aspartate joins at the top left
+    { id: 'nu_cit_c', x: 7250, y: 2400, mol: 'citr' },
+    { id: 'nu_camp', x: 7250, y: 2150, mol: 'citamp' },
+    { id: 'nu_asuc', x: 7600, y: 1920, mol: 'asuc' },
+    { id: 'nu_arg', x: 7950, y: 2150, mol: 'arg' },
+    { id: 'nu_orn_c', x: 7430, y: 2400, mol: 'orn' },
+    { id: 'nu_urea', x: 8180, y: 2400, mol: 'urea' },
+    { id: 'nu_asp_c', x: 7070, y: 1920, mol: 'asp' },
+    { id: 'nu_fum', x: 8000, y: 1780, mol: 'fum' },
+    { id: 'nu_mal', x: 7580, y: 1640, mol: 'mal', label: 'Malate' },
+    { id: 'nu_oaa_c', x: 7100, y: 1680, mol: 'oaa' },
+    { id: 'nu_x1', x: 7580, y: 1574, kind: 'xref', link: 'nu_mal', target: 'mal', label: 'or into the citric acid cycle' },
+    { id: 'n_c_urea', x: 8230, y: 1620, kind: 'card', card: 'n_c_urea', label: 'The urea cycle' },
+    { id: 'n_c_shunt', x: 8180, y: 1680, kind: 'card', card: 'n_c_shunt', label: 'Aspartate-argininosuccinate shunt' },
+    // matrix
+    { id: 'nu_asp_m', x: 7075, y: 3060, mol: 'asp' },
+    { id: 'nu_cit_m', x: 7230, y: 3190, mol: 'citr' },
+    { id: 'nu_orn_m', x: 7420, y: 3320, mol: 'orn' },
+    { id: 'nu_cp', x: 7080, y: 3430, mol: 'carbp' },
+    { id: 'nu_nh4', x: 7080, y: 3650, mol: 'nh4', label: 'NH₄⁺' },
+    { id: 'nu_gln', x: 7370, y: 3760, mol: 'gln' },
+    { id: 'nu_glu', x: 7050, y: 3900, mol: 'glu', label: 'Glutamate' },
+    { id: 'nu_x2', x: 7370, y: 3830, kind: 'xref', link: 'nu_gln', target: 'ng_gln', label: 'from other tissues' },
+  ],
+  edges: [
+    { id: 'e_nu1', from: 'nu_gln', to: 'nu_glu', enz: 'n_glnase', out: 'nu_nh4' },
+    { id: 'e_nu2', from: 'nu_glu', to: 'akg', enz: 'n_gdh', dir: 'both', tags: 'NAD(P)⁺ → NAD(P)H', tagPos: 'below', out: 'nu_nh4', co: ['NADH', 'NADPH'] },
+    { id: 'e_nu3', from: 'ls_oaa_m', to: 'nu_asp_m', enz: 'aat', tags: 'Glutamate → α-Ketoglutarate', tagPos: 'below' },
+    { id: 'e_nu4', from: 'nu_nh4', to: 'nu_cp', enz: 'n_cps1', tags: 'HCO₃⁻ + 2 ATP → 2 ADP + Pi', tagPos: 'l', co: ['ATP', 'Pi'] },
+    { id: 'e_nu5', from: 'nu_orn_m', to: 'nu_cit_m', enz: 'n_otc', feed: 'nu_cp', tags: '− Pi', tagPos: 'r', co: ['Pi'] },
+    { id: 'e_nu6', from: 'nu_cit_m', to: 'nu_cit_c', style: 'plain' },
+    { id: 'e_nu7', from: 'nu_cit_c', to: 'nu_camp', enz: 'n_ass', tags: 'ATP → PPi', tagPos: 'r', co: ['ATP'] },
+    { id: 'e_nu8', from: 'nu_camp', to: 'nu_asuc', enz: 'n_ass', feed: 'nu_asp_c', tags: '− AMP', tagPos: 'above' },
+    { id: 'e_nu9', from: 'nu_asuc', to: 'nu_arg', enz: 'n_asl', out: 'nu_fum' },
+    { id: 'e_nu10', from: 'nu_arg', to: 'nu_orn_c', enz: 'n_arginase', tags: '+ H₂O', tagPos: 'below', out: 'nu_urea' },
+    { id: 'e_nu11', from: 'nu_orn_c', to: 'nu_orn_m', style: 'plain' },
+    { id: 'e_nu12', from: 'nu_asp_m', to: 'nu_asp_c', style: 'plain', tags: 'to the cytosol', tagPos: 'l', plainTag: true },
+    { id: 'e_nu13', from: 'nu_fum', to: 'nu_mal', style: 'plain' },
+    // both directions: slide 18's bullet runs malate → oxaloacetate, its figure aspartate → oxaloacetate → malate
+    { id: 'e_nu14', from: 'nu_mal', to: 'nu_oaa_c', style: 'plain', dir: 'both', tags: 'NAD⁺ → NADH', tagPos: 'above', co: ['NADH'] },
+    { id: 'e_nu15', from: 'nu_oaa_c', to: 'nu_asp_c', enz: 'aat', dir: 'both', tags: 'Glutamate → α-Ketoglutarate', tagPos: 'l' },
+  ],
+  labels: [{ x: 7600, y: 2120, kind: 'phase', text: 'Urea cycle', anchor: 'middle', sub: ['steps 2–4 in the cytosol'] }],
+};
+
+/**
+ * The fates of the carbon skeletons (slide 19): each group of amino acids points at the molecule its carbon skeleton
+ * becomes, on the real pathways (pyruvate, acetyl-CoA, the cycle intermediates, acetoacetyl-CoA). No plate of its own;
+ * the boxes sit around the citric acid cycle, and atlas.ts lights the cycle's arrows in Final because slide 19 draws them.
+ */
+export const skeletonNodes: MapNode[] = [
+  { id: 'ns_g1', x: 5330, y: 2400, kind: 'proc', label: 'Ala · Cys · Gly · Ser · Thr · Trp', badge: 'glucogenic' },
+  { id: 'ns_k2', x: 5860, y: 3290, kind: 'proc', label: 'Ile · Leu · Thr · Trp', badge: 'ketogenic' },
+  { id: 'ns_g5', x: 5880, y: 3720, kind: 'proc', label: 'Asn · Asp', badge: 'glucogenic' },
+  { id: 'ns_g4', x: 5480, y: 4490, kind: 'proc', label: 'Phe · Tyr', badge: 'glucogenic' },
+  { id: 'ns_g3', x: 6420, y: 4500, kind: 'proc', label: 'Ile · Met · Thr · Val', badge: 'glucogenic' },
+  { id: 'ns_g2', x: 7050, y: 4150, kind: 'proc', label: 'Arg · Gln · His · Pro', badge: 'glucogenic' },
+  { id: 'ns_acac', x: 5010, y: 4440, mol: 'acacoa' },
+  { id: 'ns_k1', x: 4930, y: 4640, kind: 'proc', label: 'Leu · Lys · Phe · Trp · Tyr', badge: 'ketogenic' },
+  { id: 'n_c_gluco', x: 6300, y: 4620, kind: 'card', card: 'n_c_gluco', label: 'Glucogenic or ketogenic?' },
+];
+export const skeletonEdges: Edge[] = [
+  { id: 'e_ns19', from: 'ns_g1', to: 'pyr', style: 'plain' },
+  { id: 'e_ns18', from: 'ns_k2', to: 'accoa', style: 'plain' },
+  { id: 'e_ns23', from: 'ns_g5', to: 'oaa', style: 'plain' },
+  { id: 'e_ns22', from: 'ns_g4', to: 'fum', style: 'plain' },
+  { id: 'e_ns21', from: 'ns_g3', to: 'succoa', style: 'plain' },
+  { id: 'e_ns20', from: 'ns_g2', to: 'nu_glu', style: 'plain' },
+  { id: 'e_ns17', from: 'ns_k1', to: 'ns_acac', style: 'plain' },
+  { id: 'e_ns10', from: 'ns_acac', to: 'accoa', style: 'plain' },
+  { id: 'e_ns11', from: 'ns_acac', to: 'lk_kb', style: 'plain' },
+];
+
 // ───────── Plate 20 · digesting protein (slides 4–6) ─────────
-const p20: PlateDef = {
-  id: 'r_n20', plate: 20, part: 'IV', title: 'Digesting protein', sub: 'stomach → small intestine → liver', w: 1000, h: 1320,
+export const p20: PlateDef = {
+  id: 'r_n20', plate: 20, part: 'IV', title: 'Digesting protein', sub: 'stomach → small intestine → liver', w: 1000, h: 1320, outside: true,
   nodes: [
     { id: 'nd_prot', x: 300, y: 160, kind: 'proc', label: 'Dietary protein' },
     { id: 'nd_pep', x: 300, y: 400, kind: 'proc', label: 'Peptides' },
@@ -43,37 +150,9 @@ const p20: PlateDef = {
   ],
 };
 
-// ───────── Plate 21 · removing the amino group (slides 7–11) ─────────
-const p21: PlateDef = {
-  id: 'r_n21', plate: 21, part: 'IV', title: 'Removing the amino group', sub: 'transamination · deamination', w: 1000, h: 1120,
-  nodes: [
-    { id: 'nt_aa', x: 250, y: 190, mol: 'aa' },
-    { id: 'nt_ak', x: 250, y: 470, mol: 'aketo' },
-    { id: 'nt_glu', x: 640, y: 470, mol: 'glu', label: 'L-Glutamate' },
-    { id: 'nt_akg', x: 640, y: 790, mol: 'akg' },
-    { id: 'nt_nh4', x: 330, y: 790, mol: 'nh4', label: 'NH₄⁺' },
-    { id: 'n_c_circum', x: 840, y: 150, kind: 'card', card: 'n_c_circum', label: 'Three circumstances' },
-    { id: 'n_c_overview', x: 840, y: 210, kind: 'card', card: 'n_c_overview', label: 'Overview' },
-    { id: 'n_c_collect', x: 840, y: 270, kind: 'card', card: 'n_c_collect', label: 'Collection points' },
-    { id: 'n_c_excrete', x: 330, y: 1040, kind: 'card', card: 'n_c_excrete', label: 'Ammonia, urea or uric acid' },
-    { id: 'nt_x0', x: 480, y: 186, kind: 'xref', link: 'nt_aa', target: 'nd_aa', label: 'from digested protein' },
-    { id: 'nt_x1', x: 250, y: 556, kind: 'xref', link: 'nt_ak', target: 'ns_cit', label: 'fate of the carbon skeletons' },
-    { id: 'nt_x2', x: 330, y: 876, kind: 'xref', link: 'nt_nh4', target: 'nu_nh4', label: 'into the urea cycle' },
-    { id: 'nt_x3', x: 640, y: 876, kind: 'xref', link: 'nt_akg', target: 'akg', label: 'citric acid cycle' },
-  ],
-  edges: [
-    { id: 'e_nt1', from: 'nt_aa', to: 'nt_ak', enz: 'n_at', dir: 'both', tags: '+ α-Ketoglutarate', tagPos: 'l', out: 'nt_glu', co: ['PLP'] },
-    { id: 'e_nt2', from: 'nt_glu', to: 'nt_akg', enz: 'n_gdh', dir: 'both', tags: 'NAD(P)⁺ → NAD(P)H', tagPos: 'r', out: 'nt_nh4', co: ['NADH', 'NADPH'] },
-  ],
-  labels: [
-    { x: 40, y: 110, kind: 'phase', text: 'Cytosol', sub: ['hepatocyte'] },
-    { x: 470, y: 380, kind: 'phase', text: 'Liver mitochondria' },
-  ],
-};
-
 // ───────── Plate 22 · ammonia to the liver (slides 12–13, 20) ─────────
-const p22: PlateDef = {
-  id: 'r_n22', plate: 22, part: 'IV', title: 'Ammonia to the liver', sub: 'glutamine · glucose-alanine cycle', w: 1240, h: 1380,
+export const p22: PlateDef = {
+  id: 'r_n22', plate: 22, part: 'IV', title: 'Ammonia to the liver', sub: 'glutamine · glucose-alanine cycle', w: 1240, h: 1380, outside: true,
   nodes: [
     { id: 'ng_glu', x: 220, y: 180, mol: 'glu', label: 'Glutamate' },
     { id: 'ng_ggp', x: 220, y: 410, mol: 'ggp' },
@@ -112,126 +191,9 @@ const p22: PlateDef = {
   ],
 };
 
-// ───────── Plate 23 · the urea cycle (slides 14–18) ─────────
-const p23: PlateDef = {
-  id: 'r_n23', plate: 23, part: 'IV', title: 'Urea cycle', sub: 'liver: mitochondria and cytosol', w: 1250, h: 1800,
-  nodes: [
-    // matrix
-    { id: 'nu_gln', x: 210, y: 180, mol: 'gln' },
-    { id: 'nu_glu', x: 560, y: 180, mol: 'glu', label: 'Glutamate' },
-    { id: 'nu_oaa', x: 1010, y: 180, mol: 'oaa' },
-    { id: 'nu_nh4', x: 300, y: 410, mol: 'nh4', label: 'NH₄⁺' },
-    { id: 'nu_akg', x: 640, y: 410, mol: 'akg' },
-    { id: 'nu_asp_m', x: 1010, y: 410, mol: 'asp' },
-    { id: 'nu_cp', x: 300, y: 600, mol: 'carbp' },
-    { id: 'nu_orn_m', x: 150, y: 730, mol: 'orn' },
-    { id: 'nu_cit_m', x: 700, y: 730, mol: 'citr' },
-    // cytosol
-    { id: 'nu_cit_c', x: 1000, y: 960, mol: 'citr' },
-    { id: 'nu_camp', x: 1000, y: 1190, mol: 'citamp' },
-    { id: 'nu_asp_c', x: 1190, y: 1330, mol: 'asp' },
-    { id: 'nu_asuc', x: 790, y: 1430, mol: 'asuc' },
-    { id: 'nu_arg', x: 380, y: 1430, mol: 'arg' },
-    { id: 'nu_orn_c', x: 150, y: 1190, mol: 'orn' },
-    { id: 'nu_urea', x: 90, y: 1430, mol: 'urea' },
-    { id: 'nu_fum', x: 580, y: 1620, mol: 'fum' },
-    { id: 'nu_mal', x: 850, y: 1620, mol: 'mal', label: 'Malate' },
-    { id: 'nu_oaa_c', x: 1110, y: 1620, mol: 'oaa' },
-    { id: 'n_c_urea', x: 200, y: 1740, kind: 'card', card: 'n_c_urea', label: 'The urea cycle' },
-    { id: 'n_c_shunt', x: 480, y: 1740, kind: 'card', card: 'n_c_shunt', label: 'Aspartate-argininosuccinate shunt' },
-    { id: 'nu_x1', x: 850, y: 1706, kind: 'xref', link: 'nu_mal', target: 'mal', label: 'or into the citric acid cycle' },
-    { id: 'nu_x2', x: 640, y: 496, kind: 'xref', link: 'nu_akg', target: 'akg', label: 'citric acid cycle' },
-  ],
-  edges: [
-    { id: 'e_nu1', from: 'nu_gln', to: 'nu_glu', enz: 'n_glnase', out: 'nu_nh4' },
-    { id: 'e_nu2', from: 'nu_glu', to: 'nu_akg', enz: 'n_gdh', dir: 'both', out: 'nu_nh4', co: ['NADH', 'NADPH'] },
-    { id: 'e_nu3', from: 'nu_oaa', to: 'nu_asp_m', enz: 'aat', tags: 'Glutamate → α-Ketoglutarate', tagPos: 'l' },
-    { id: 'e_nu4', from: 'nu_nh4', to: 'nu_cp', enz: 'n_cps1', tags: 'HCO₃⁻ + 2 ATP → 2 ADP + Pi', tagPos: 'l', co: ['ATP', 'Pi'] },
-    { id: 'e_nu5', from: 'nu_orn_m', to: 'nu_cit_m', enz: 'n_otc', feed: 'nu_cp', tags: '− Pi', tagPos: 'below', co: ['Pi'] },
-    { id: 'e_nu6', from: 'nu_cit_m', to: 'nu_cit_c', style: 'plain' },
-    { id: 'e_nu7', from: 'nu_cit_c', to: 'nu_camp', enz: 'n_ass', tags: 'ATP → PPi', tagPos: 'l', co: ['ATP'] },
-    { id: 'e_nu8', from: 'nu_camp', to: 'nu_asuc', enz: 'n_ass', feed: 'nu_asp_c', tags: '− AMP', tagPos: 'l' },
-    { id: 'e_nu9', from: 'nu_asuc', to: 'nu_arg', enz: 'n_asl', out: 'nu_fum' },
-    { id: 'e_nu10', from: 'nu_arg', to: 'nu_orn_c', enz: 'n_arginase', tags: '+ H₂O', tagPos: 'r', out: 'nu_urea' },
-    { id: 'e_nu11', from: 'nu_orn_c', to: 'nu_orn_m', style: 'plain' },
-    { id: 'e_nu12', from: 'nu_asp_m', to: 'nu_asp_c', style: 'plain', via: [[1190, 410]], tags: 'to the cytosol', tagPos: 'l', plainTag: true },
-    { id: 'e_nu13', from: 'nu_fum', to: 'nu_mal', style: 'plain' },
-    { id: 'e_nu14', from: 'nu_mal', to: 'nu_oaa_c', style: 'plain', tags: 'NAD⁺ → NADH', tagPos: 'above', co: ['NADH'] },
-    { id: 'e_nu15', from: 'nu_oaa_c', to: 'nu_asp_c', enz: 'aat', tags: 'Glutamate → α-Ketoglutarate', tagPos: 'l' },
-  ],
-  bands: [{ id: 'b_nu', x: 20, y: 810, w: 1210, h: 60 }],
-  captions: [
-    { x: 40, y: 110, text: 'MITOCHONDRIAL MATRIX' },
-    { x: 1230, y: 845, text: 'INNER MEMBRANE', anchor: 'end' },
-    { x: 40, y: 910, text: 'CYTOSOL' },
-  ],
-  labels: [
-    { x: 560, y: 1070, kind: 'phase', text: 'Urea cycle', anchor: 'middle', sub: ['steps 2–4 in the cytosol'] },
-  ],
-};
-
-// ───────── Plate 24 · fates of the carbon skeletons (slide 19) ─────────
-const p24: PlateDef = {
-  id: 'r_n24', plate: 24, part: 'IV', title: 'Fates of the carbon skeletons', sub: 'glucogenic · ketogenic', w: 1260, h: 1300,
-  nodes: [
-    // citric acid cycle, drawn as on the slide
-    { id: 'ns_cit', x: 540, y: 560, mol: 'cit' },
-    { id: 'ns_icit', x: 580, y: 360, mol: 'icit' },
-    { id: 'ns_akg', x: 910, y: 330, mol: 'akg' },
-    { id: 'ns_succoa', x: 1000, y: 540, mol: 'succoa' },
-    { id: 'ns_suc', x: 1000, y: 720, mol: 'suc' },
-    { id: 'ns_fum', x: 910, y: 880, mol: 'fum' },
-    { id: 'ns_mal', x: 720, y: 960, mol: 'mal', label: 'Malate' },
-    { id: 'ns_oaa', x: 530, y: 820, mol: 'oaa' },
-    // hubs
-    { id: 'ns_kb', x: 420, y: 160, kind: 'small', label: 'Ketone bodies' },
-    { id: 'ns_acac', x: 200, y: 330, mol: 'acacoa' },
-    { id: 'ns_accoa', x: 270, y: 560, mol: 'accoa' },
-    { id: 'ns_pyr', x: 300, y: 1010, mol: 'pyr' },
-    { id: 'ns_glu', x: 910, y: 160, mol: 'glu', label: 'Glutamate' },
-    { id: 'ns_glc', x: 760, y: 1180, kind: 'small', label: 'Glucose' },
-    // amino acid groups (slide 19 colours: glucogenic / ketogenic)
-    { id: 'ns_k1', x: 200, y: 160, kind: 'proc', label: 'Leu · Lys · Phe · Trp · Tyr', badge: 'ketogenic' },
-    { id: 'ns_k2', x: 110, y: 760, kind: 'proc', label: 'Ile · Leu · Thr · Trp', badge: 'ketogenic' },
-    { id: 'ns_g1', x: 300, y: 1180, kind: 'proc', label: 'Ala · Cys · Gly · Ser · Thr · Trp', badge: 'glucogenic' },
-    { id: 'ns_g2', x: 1110, y: 160, kind: 'proc', label: 'Arg · Gln · His · Pro', badge: 'glucogenic' },
-    { id: 'ns_g3', x: 1140, y: 430, kind: 'proc', label: 'Ile · Met · Thr · Val', badge: 'glucogenic' },
-    { id: 'ns_g4', x: 1110, y: 880, kind: 'proc', label: 'Phe · Tyr', badge: 'glucogenic' },
-    { id: 'ns_g5', x: 560, y: 1060, kind: 'proc', label: 'Asn · Asp', badge: 'glucogenic' },
-    { id: 'n_c_gluco', x: 1100, y: 1180, kind: 'card', card: 'n_c_gluco', label: 'Glucogenic or ketogenic?' },
-    { id: 'ns_x1', x: 420, y: 90, kind: 'xref', link: 'ns_kb', target: 'lk_kb', label: 'ketone bodies' },
-  ],
-  edges: [
-    { id: 'e_ns1', from: 'ns_cit', to: 'ns_icit', style: 'plain' },
-    { id: 'e_ns2', from: 'ns_icit', to: 'ns_akg', style: 'plain' },
-    { id: 'e_ns3', from: 'ns_akg', to: 'ns_succoa', style: 'plain' },
-    { id: 'e_ns4', from: 'ns_succoa', to: 'ns_suc', style: 'plain' },
-    { id: 'e_ns5', from: 'ns_suc', to: 'ns_fum', style: 'plain' },
-    { id: 'e_ns6', from: 'ns_fum', to: 'ns_mal', style: 'plain' },
-    { id: 'e_ns7', from: 'ns_mal', to: 'ns_oaa', style: 'plain' },
-    { id: 'e_ns8', from: 'ns_oaa', to: 'ns_cit', style: 'plain' },
-    { id: 'e_ns9', from: 'ns_accoa', to: 'ns_cit', style: 'plain' },
-    { id: 'e_ns10', from: 'ns_acac', to: 'ns_accoa', style: 'plain' },
-    { id: 'e_ns11', from: 'ns_acac', to: 'ns_kb', style: 'plain' },
-    { id: 'e_ns12', from: 'ns_accoa', to: 'ns_kb', style: 'plain' },
-    { id: 'e_ns13', from: 'ns_pyr', to: 'ns_accoa', style: 'plain' },
-    { id: 'e_ns14', from: 'ns_pyr', to: 'ns_oaa', style: 'plain', tags: '+ CO₂', tagPos: 'r', plainTag: true },
-    { id: 'e_ns15', from: 'ns_oaa', to: 'ns_glc', style: 'plain', tags: 'gluconeogenesis', tagPos: 'r', plainTag: true },
-    { id: 'e_ns16', from: 'ns_glu', to: 'ns_akg', style: 'plain' },
-    { id: 'e_ns17', from: 'ns_k1', to: 'ns_acac', style: 'plain' },
-    { id: 'e_ns18', from: 'ns_k2', to: 'ns_accoa', style: 'plain' },
-    { id: 'e_ns19', from: 'ns_g1', to: 'ns_pyr', style: 'plain' },
-    { id: 'e_ns20', from: 'ns_g2', to: 'ns_glu', style: 'plain' },
-    { id: 'e_ns21', from: 'ns_g3', to: 'ns_succoa', style: 'plain' },
-    { id: 'e_ns22', from: 'ns_g4', to: 'ns_fum', style: 'plain' },
-    { id: 'e_ns23', from: 'ns_g5', to: 'ns_oaa', style: 'plain' },
-  ],
-  labels: [{ x: 770, y: 650, kind: 'phase', text: 'Citric acid cycle', anchor: 'middle' }],
-};
-
-// ───────── Plate 25 · amino acid biosynthesis, by family (slides 22, 28) ─────────
-const p25: PlateDef = {
-  id: 'r_n25', plate: 25, part: 'IV', title: 'Making amino acids', sub: 'six families, by precursor', w: 1300, h: 1160,
+// ───────── Plate 24 · amino acid biosynthesis, by family (slides 22, 28) ─────────
+export const p24: PlateDef = {
+  id: 'r_n24', plate: 24, part: 'IV', title: 'Making amino acids', sub: 'six families, by precursor', w: 1300, h: 1160,
   nodes: [
     { id: 'nb_akg', x: 220, y: 170, mol: 'akg' },
     { id: 'nb_glu', x: 220, y: 350, mol: 'glu', label: 'Glutamate' },
@@ -263,7 +225,7 @@ const p25: PlateDef = {
     { id: 'n_c_biosyn', x: 1100, y: 1080, kind: 'card', card: 'n_c_biosyn', label: 'Essential amino acids' },
     { id: 'nb_x1', x: 380, y: 166, kind: 'xref', link: 'nb_akg', target: 'akg', label: 'citric acid cycle' },
     { id: 'nb_x2', x: 810, y: 166, kind: 'xref', link: 'nb_pg3', target: 'pg3', label: 'glycolysis' },
-    { id: 'nb_x3', x: 1110, y: 736, kind: 'xref', link: 'nb_pyr', target: 'pyr', label: 'glycolysis' },
+    { id: 'nb_x3', x: 830, y: 736, kind: 'xref', link: 'nb_pyr', target: 'pyr', label: 'glycolysis' },
     { id: 'nb_x4', x: 130, y: 650, kind: 'xref', link: 'nb_r5p', target: 'r5p', label: 'pentose phosphate pathway' },
     { id: 'nb_x5', x: 800, y: 346, kind: 'xref', link: 'nb_ser', target: 'nsg_ser', label: 'serine & glycine' },
     { id: 'nb_x6', x: 740, y: 616, kind: 'xref', link: 'nb_cys', target: 'nc_cys', label: 'cysteine' },
@@ -297,9 +259,9 @@ const p25: PlateDef = {
   ],
 };
 
-// ───────── Plate 26 · serine and glycine (slide 23) ─────────
-const p26: PlateDef = {
-  id: 'r_n26', plate: 26, part: 'IV', title: 'Serine & glycine', sub: 'from 3-phosphoglycerate', w: 900, h: 1330,
+// ───────── Plate 25 · serine and glycine (slide 23) ─────────
+export const p25: PlateDef = {
+  id: 'r_n25', plate: 25, part: 'IV', title: 'Serine & glycine', sub: 'from 3-phosphoglycerate', w: 900, h: 1330,
   nodes: [
     { id: 'nsg_pg3', x: 260, y: 160, mol: 'pg3' },
     { id: 'nsg_php', x: 260, y: 390, mol: 'phpyr' },
@@ -308,9 +270,7 @@ const p26: PlateDef = {
     { id: 'nsg_gly', x: 260, y: 1100, mol: 'gly' },
     { id: 'nsg_co2', x: 720, y: 1100, kind: 'small', label: 'CO₂ + NH₄⁺' },
     { id: 'nsg_x1', x: 500, y: 156, kind: 'xref', link: 'nsg_pg3', target: 'pg3', label: 'from glycolysis' },
-    { id: 'nsg_x2', x: 580, y: 846, kind: 'xref', link: 'nsg_ser', target: 'nc_ser', label: '→ cysteine' },
-    { id: 'nsg_x3', x: 260, y: 1190, kind: 'xref', link: 'nsg_gly', target: 'nh_gly', label: '→ porphyrins, creatine, glutathione' },
-    { id: 'nsg_x4', x: 260, y: 1236, kind: 'xref', target: 'np_gar', label: '→ purine ring (C-4, C-5, N-7)' },
+    { id: 'nsg_x4', x: 470, y: 1236, kind: 'xref', link: 'nsg_gly', target: 'np_gar', label: '→ purine ring (C-4, C-5, N-7)' },
   ],
   edges: [
     { id: 'e_nsg1', from: 'nsg_pg3', to: 'nsg_php', enz: 'n_phgdh', tags: 'NAD⁺ → NADH + H⁺', tagPos: 'r', co: ['NADH'] },
@@ -321,13 +281,12 @@ const p26: PlateDef = {
   ],
 };
 
-// ───────── Plate 27 · cysteine (slides 24–25) ─────────
-const p27: PlateDef = {
-  id: 'r_n27', plate: 27, part: 'IV', title: 'Cysteine', sub: 'bacteria & plants · mammals', w: 1250, h: 1300,
+// ───────── Plate 26 · cysteine (slides 24–25) ─────────
+export const p26: PlateDef = {
+  id: 'r_n26', plate: 26, part: 'IV', title: 'Cysteine', sub: 'bacteria & plants · mammals', w: 1250, h: 1300,
   nodes: [
-    { id: 'nc_ser', x: 230, y: 180, mol: 'ser' },
-    { id: 'nc_oas', x: 230, y: 470, mol: 'oas' },
-    { id: 'nc_cys', x: 230, y: 780, mol: 'cys' },
+    { id: 'nc_oas', x: 230, y: 850, mol: 'oas' },
+    { id: 'nc_cys', x: 230, y: 1100, mol: 'cys' },
     { id: 'nc_so4', x: 640, y: 180, mol: 'so4' },
     { id: 'nc_aps', x: 640, y: 400, mol: 'aps' },
     { id: 'nc_paps', x: 640, y: 620, mol: 'paps' },
@@ -335,14 +294,13 @@ const p27: PlateDef = {
     { id: 'nc_s2', x: 640, y: 1060, mol: 's2' },
     { id: 'nc_met', x: 1050, y: 180, mol: 'met' },
     { id: 'nc_hcy', x: 1050, y: 430, mol: 'hcy' },
-    { id: 'nc_ser2', x: 1190, y: 300, mol: 'ser' },
+    { id: 'nc_ser2', x: 1200, y: 575, mol: 'ser' },
     { id: 'nc_cysta', x: 1050, y: 720, mol: 'cysta' },
     { id: 'nc_cys2', x: 1050, y: 1000, mol: 'cys' },
     { id: 'nc_akb', x: 850, y: 1000, mol: 'akb' },
-    { id: 'nc_x1', x: 230, y: 94, kind: 'xref', link: 'nc_ser', target: 'nsg_ser', label: 'from 3-phosphoglycerate' },
   ],
   edges: [
-    { id: 'e_nc1', from: 'nc_ser', to: 'nc_oas', enz: 'n_sat', tags: 'Acetyl-CoA → CoA-SH', tagPos: 'r', co: ['CoA'] },
+    { id: 'e_nc1', from: 'nsg_ser', to: 'nc_oas', enz: 'n_sat', tags: 'Acetyl-CoA → CoA-SH', tagPos: 'above', co: ['CoA'] },
     { id: 'e_nc2', from: 'nc_oas', to: 'nc_cys', enz: 'n_oasl', feed: 'nc_s2', tags: '− acetate', tagPos: 'l' },
     { id: 'e_nc3', from: 'nc_so4', to: 'nc_aps', enz: 'n_atps', tags: 'ATP + H⁺ → PPi', tagPos: 'r', co: ['ATP'] },
     { id: 'e_nc4', from: 'nc_aps', to: 'nc_paps', enz: 'n_apsk', tags: 'ATP → ADP', tagPos: 'r', co: ['ATP'] },
@@ -353,16 +311,15 @@ const p27: PlateDef = {
     { id: 'e_nc9', from: 'nc_cysta', to: 'nc_cys2', enz: 'n_cgl', tags: 'H₂O → NH₄⁺', tagPos: 'r', out: 'nc_akb', co: ['PLP'] },
   ],
   labels: [
-    { x: 40, y: 1180, kind: 'phase', text: 'Bacteria and plants', sub: ['sulfur from environmental sulfate'] },
-    { x: 860, y: 1180, kind: 'phase', text: 'Mammals', sub: ['sulfur from methionine'] },
+    { x: 40, y: 110, kind: 'phase', text: 'Bacteria and plants', sub: ['sulfur from environmental sulfate'] },
+    { x: 860, y: 110, kind: 'phase', text: 'Mammals', sub: ['sulfur from methionine'] },
   ],
 };
 
-// ───────── Plate 28 · heme, glutathione and creatine (slide 26) ─────────
-const p28: PlateDef = {
-  id: 'r_n28', plate: 28, part: 'IV', title: 'Heme, glutathione & creatine', sub: 'molecules made from amino acids', w: 1250, h: 1300,
+// ───────── Plate 27 · heme, glutathione and creatine (slide 26) ─────────
+export const p27: PlateDef = {
+  id: 'r_n27', plate: 27, part: 'IV', title: 'Heme, glutathione & creatine', w: 1250, h: 1300, titleX: 300,
   nodes: [
-    { id: 'nh_gly', x: 240, y: 170, mol: 'gly' },
     { id: 'nh_heme', x: 240, y: 410, mol: 'heme' },
     { id: 'nh_bv', x: 240, y: 670, mol: 'biliverdin' },
     { id: 'nh_br', x: 240, y: 930, mol: 'bilirubin' },
@@ -375,10 +332,10 @@ const p28: PlateDef = {
     { id: 'nh_cre', x: 1080, y: 430, mol: 'creatine' },
     { id: 'nh_pcr', x: 1080, y: 690, mol: 'pcr', badge: 'energy buffer' },
     { id: 'n_c_derived', x: 1060, y: 940, kind: 'card', card: 'n_c_derived', label: 'Made from amino acids' },
-    { id: 'nh_x1', x: 420, y: 166, kind: 'xref', link: 'nh_gly', target: 'nsg_gly', label: 'from serine' },
   ],
   edges: [
-    { id: 'e_nh1', from: 'nh_gly', to: 'nh_heme', style: 'plain', tags: 'precursor of porphyrins', tagPos: 'r', plainTag: true },
+    { id: 'e_nh1', from: 'nsg_gly', to: 'nh_heme', style: 'plain', tags: 'precursor of porphyrins', tagPos: 'r', plainTag: true },
+    { id: 'e_nh9', from: 'nc_cys', to: 'nh_gc', style: 'link' },
     { id: 'e_nh2', from: 'nh_heme', to: 'nh_bv', enz: 'n_ho', tags: 'NADPH + O₂ → CO + Fe³⁺ + NADP⁺', tagPos: 'r', co: ['NADPH'] },
     { id: 'e_nh3', from: 'nh_bv', to: 'nh_br', enz: 'n_bvr', tags: 'NADPH → NADP⁺', tagPos: 'r', co: ['NADPH'] },
     { id: 'e_nh4', from: 'nh_br', to: 'nh_bile', style: 'plain' },
@@ -389,9 +346,9 @@ const p28: PlateDef = {
   ],
 };
 
-// ───────── Plate 29 · biological amines and NO (slide 27) ─────────
-const p29: PlateDef = {
-  id: 'r_n29', plate: 29, part: 'IV', title: 'Biological amines & nitric oxide', sub: 'PLP-dependent decarboxylations', w: 1300, h: 1300,
+// ───────── Plate 28 · biological amines and NO (slide 27) ─────────
+export const p28: PlateDef = {
+  id: 'r_n28', plate: 28, part: 'IV', title: 'Biological amines & nitric oxide', sub: 'PLP-dependent decarboxylations', w: 1300, h: 1300,
   nodes: [
     { id: 'na_dopa', x: 200, y: 170, mol: 'dopa' },
     { id: 'na_da', x: 200, y: 430, mol: 'dopamine' },
@@ -424,10 +381,10 @@ const p29: PlateDef = {
   ],
 };
 
-// ───────── Plate 30 · de novo purine synthesis (slides 30–32) ─────────
+// ───────── Plate 29 · de novo purine synthesis (slides 30–32) ─────────
 // Down the left column to AIR (the first ring), then up the right column to IMP, as on the slide.
-const p30: PlateDef = {
-  id: 'r_n30', plate: 30, part: 'IV', title: 'Purine synthesis', sub: 'PRPP → IMP in eleven steps', w: 1200, h: 1680,
+export const p29: PlateDef = {
+  id: 'r_n29', plate: 29, part: 'IV', title: 'Purine synthesis', sub: 'PRPP → IMP in eleven steps', w: 1200, h: 1680,
   nodes: [
     { id: 'np_r5p', x: 300, y: 160, mol: 'r5p' },
     { id: 'np_prpp', x: 300, y: 350, mol: 'prpp', label: 'PRPP' },
@@ -447,7 +404,6 @@ const p30: PlateDef = {
     { id: 'n_c_purring', x: 1060, y: 210, kind: 'card', card: 'n_c_purring', label: 'Ring atoms' },
     { id: 'n_c_purine', x: 1060, y: 270, kind: 'card', card: 'n_c_purine', label: 'The 11 steps' },
     { id: 'np_x1', x: 520, y: 156, kind: 'xref', link: 'np_r5p', target: 'r5p', label: 'pentose phosphate pathway' },
-    { id: 'np_x2', x: 860, y: 264, kind: 'xref', link: 'np_imp', target: 'nx_imp', label: '→ AMP and GMP' },
   ],
   edges: [
     { id: 'e_np0', from: 'np_r5p', to: 'np_prpp', style: 'plain', tags: 'PRPP is derived from ribose 5-phosphate', tagPos: 'r', plainTag: true },
@@ -469,11 +425,10 @@ const p30: PlateDef = {
   ],
 };
 
-// ───────── Plate 31 · AMP and GMP; salvage (slides 33, 36) ─────────
-const p31: PlateDef = {
-  id: 'r_n31', plate: 31, part: 'IV', title: 'AMP & GMP, and salvage', sub: 'from IMP · recycling free bases', w: 1250, h: 1290,
+// ───────── Plate 30 · AMP and GMP; salvage (slides 33, 36) ─────────
+export const p30: PlateDef = {
+  id: 'r_n30', plate: 30, part: 'IV', title: 'AMP & GMP, and salvage', sub: 'from IMP · recycling free bases', w: 1250, h: 1290,
   nodes: [
-    { id: 'nx_imp', x: 170, y: 430, mol: 'imp' },
     { id: 'nx_adsuc', x: 640, y: 200, mol: 'adsuc' },
     { id: 'nx_amp', x: 1070, y: 200, mol: 'amp' },
     { id: 'nx_xmp', x: 640, y: 660, mol: 'xmp' },
@@ -486,12 +441,11 @@ const p31: PlateDef = {
     { id: 'nx_gmp2', x: 640, y: 1230, mol: 'gmp' },
     { id: 'n_c_ampgmp', x: 1070, y: 430, kind: 'card', card: 'n_c_ampgmp', label: 'GTP for AMP, ATP for GMP' },
     { id: 'n_c_salvage', x: 1030, y: 1080, kind: 'card', card: 'n_c_salvage', label: 'Salvage pathways' },
-    { id: 'nx_x1', x: 330, y: 426, kind: 'xref', link: 'nx_imp', target: 'np_imp', label: 'made de novo' },
   ],
   edges: [
-    { id: 'e_nx1', from: 'nx_imp', to: 'nx_adsuc', enz: 'n_adss', via: [[170, 200]], t: 0.66, tags: 'Aspartate + GTP → GDP + Pi', tagPos: 'below', co: ['GTP', 'Pi'] },
+    { id: 'e_nx1', from: 'np_imp', to: 'nx_adsuc', enz: 'n_adss', via: [[170, 200]], t: 0.66, tags: 'Aspartate + GTP → GDP + Pi', tagPos: 'below', co: ['GTP', 'Pi'] },
     { id: 'e_nx2', from: 'nx_adsuc', to: 'nx_amp', enz: 'n_adsl', tags: '− Fumarate', tagPos: 'below' },
-    { id: 'e_nx3', from: 'nx_imp', to: 'nx_xmp', enz: 'n_impdh', via: [[170, 660]], t: 0.66, tags: 'H₂O + NAD⁺ → NADH + H⁺', tagPos: 'above', co: ['NADH'] },
+    { id: 'e_nx3', from: 'np_imp', to: 'nx_xmp', enz: 'n_impdh', via: [[170, 660]], t: 0.66, tags: 'H₂O + NAD⁺ → NADH + H⁺', tagPos: 'above', co: ['NADH'] },
     { id: 'e_nx4', from: 'nx_xmp', to: 'nx_gmp', enz: 'n_gmps', tags: 'Glutamine + ATP + H₂O → Glutamate + AMP + PPi', tagPos: 'below', co: ['ATP'] },
     { id: 'e_nx5', from: 'nx_ade', to: 'nx_amp2', enz: 'n_aprt', tags: 'PRPP → PPi', tagPos: 'above' },
     { id: 'e_nx6', from: 'nx_hyp', to: 'nx_imp2', enz: 'n_hgprt', tags: 'PRPP → PPi', tagPos: 'above' },
@@ -503,9 +457,9 @@ const p31: PlateDef = {
   ],
 };
 
-// ───────── Plate 32 · pyrimidine nucleotides (slide 34) ─────────
-const p32: PlateDef = {
-  id: 'r_n32', plate: 32, part: 'IV', title: 'Pyrimidine synthesis', sub: 'UTP and CTP via orotidylate', w: 900, h: 1880,
+// ───────── Plate 31 · pyrimidine nucleotides (slide 34) ─────────
+export const p31: PlateDef = {
+  id: 'r_n31', plate: 31, part: 'IV', title: 'Pyrimidine synthesis', sub: 'UTP and CTP via orotidylate', w: 900, h: 1880,
   nodes: [
     { id: 'ny_asp', x: 300, y: 170, mol: 'asp' },
     { id: 'ny_cp', x: 640, y: 250, mol: 'carbp' },
@@ -530,9 +484,9 @@ const p32: PlateDef = {
   ],
 };
 
-// ───────── Plate 33 · deoxyribonucleotides and thymidylate (slide 35) ─────────
-const p33: PlateDef = {
-  id: 'r_n33', plate: 33, part: 'IV', title: 'Deoxyribonucleotides & thymidylate', sub: 'dTMP from dUMP', w: 1250, h: 1220,
+// ───────── Plate 32 · deoxyribonucleotides and thymidylate (slide 35) ─────────
+export const p32: PlateDef = {
+  id: 'r_n32', plate: 32, part: 'IV', title: 'Deoxyribonucleotides & thymidylate', sub: 'dTMP from dUMP', w: 1250, h: 1220,
   nodes: [
     { id: 'nd_cdp', x: 170, y: 170, mol: 'cdp' },
     { id: 'nd_dcdp', x: 580, y: 170, mol: 'dcdp' },
@@ -564,9 +518,9 @@ const p33: PlateDef = {
   ],
 };
 
-// ───────── Plate 34 · purine breakdown (slide 37) ─────────
-const p34: PlateDef = {
-  id: 'r_n34', plate: 34, part: 'IV', title: 'Purine breakdown', sub: 'to uric acid, and beyond', w: 1250, h: 1480,
+// ───────── Plate 33 · purine breakdown (slide 37) ─────────
+export const p33: PlateDef = {
+  id: 'r_n33', plate: 33, part: 'IV', title: 'Purine breakdown', sub: 'to uric acid, and beyond', w: 1250, h: 1480,
   nodes: [
     { id: 'nq_gmp', x: 230, y: 170, mol: 'gmp' },
     { id: 'nq_guo', x: 230, y: 400, mol: 'guanosine' },
@@ -601,9 +555,9 @@ const p34: PlateDef = {
   captions: [{ x: 920, y: 100, text: 'EXCRETED BY', anchor: 'middle' }],
 };
 
-// ───────── Plate 35 · pyrimidine breakdown (slide 38) ─────────
-const p35: PlateDef = {
-  id: 'r_n35', plate: 35, part: 'IV', title: 'Pyrimidine breakdown', sub: 'NH₄⁺ → urea; thymine → succinyl-CoA', w: 1250, h: 1480,
+// ───────── Plate 34 · pyrimidine breakdown (slide 38) ─────────
+export const p34: PlateDef = {
+  id: 'r_n34', plate: 34, part: 'IV', title: 'Pyrimidine breakdown', sub: 'NH₄⁺ → urea; thymine → succinyl-CoA', w: 1250, h: 1480,
   nodes: [
     { id: 'nr_thy', x: 300, y: 170, mol: 'thymine' },
     { id: 'nr_dht', x: 300, y: 400, mol: 'dht' },
@@ -641,31 +595,3 @@ const p35: PlateDef = {
     { x: 700, y: 100, kind: 'phase', text: 'Overview' },
   ],
 };
-
-/**
- * Cross-references drawn on the midterm and Part III plates, pointing into Part IV. Absolute coordinates; the midterm
- * ones sit on plates that are placed the same in the desktop and phone scenes.
- */
-const outsideXrefs: MapNode[] = [
-  { id: 'px_akg', x: 2110, y: 2676, kind: 'xref', link: 'akg', target: 'nt_akg', label: 'amino-group acceptor in transamination' },
-  { id: 'px_fum', x: 1150, y: 2976, kind: 'xref', link: 'fum', target: 'nu_fum', label: 'also from the urea cycle' },
-  { id: 'px_oaa', x: 1330, y: 2446, kind: 'xref', link: 'oaa', target: 'nu_oaa', label: '→ aspartate for the urea cycle' },
-  { id: 'px_succoa', x: 2010, y: 3022, kind: 'xref', target: 'ns_succoa', label: 'also from Ile, Met, Thr, Val and thymine' },
-  { id: 'px_pg3', x: 1330, y: 1326, kind: 'xref', link: 'pg3', target: 'nsg_pg3', label: '→ serine, glycine, cysteine' },
-  { id: 'px_pyr', x: 1250, y: 1928, kind: 'xref', link: 'pyr', target: 'ng_mpyr', label: '↔ alanine (glucose-alanine cycle)' },
-  { id: 'px_r5p', x: 1780, y: 516, kind: 'xref', link: 'r5p', target: 'np_r5p', label: '→ PRPP for nucleotides' },
-  { id: 'px_prop', x: 4600, y: 2880, kind: 'xref', link: 'lp_prop', target: 'nr_prop', label: 'also from thymine' },
-];
-
-// six columns to the right of Part III (which ends at x ≈ 6940)
-const C1 = 7100, C2 = 8400, C3 = 9720, C4 = 11080, C5 = 12440, C6 = 13750;
-const placed = [
-  place(p20, C1, 20), place(p21, C1, 1400), place(p22, C1, 2580),
-  place(p23, C2, 20), place(p24, C2, 1880),
-  place(p25, C3, 20), place(p26, C3, 1240), place(p27, C3, 2630),
-  place(p28, C4, 20), place(p29, C4, 1380),
-  place(p30, C5, 20), place(p31, C5, 1760),
-  place(p32, C6, 20), place(p33, C6 + 960, 20), place(p34, C6 + 960, 1300), place(p35, C6 + 960, 2840),
-];
-
-export const aminoScene = combine(placed, outsideXrefs);

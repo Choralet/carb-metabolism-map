@@ -3,7 +3,7 @@ import { cardById } from '../data/cards';
 import { classById, enzById } from '../data/enzymes';
 import { molById } from '../data/molecules';
 import { regBlocks } from '../data/regulation';
-import type { EnzClass, Exam, Scene, Scope } from '../data/types';
+import { inExam, type EnzClass, type Exam, type Scene, type Scope } from '../data/types';
 import type { Selection, View } from '../Diagram';
 import { bestPlace, molPlaces, placesOf, regionView, viewAround, type Place } from '../locate';
 import { MarkIcon } from '../map/glyphs';
@@ -96,7 +96,7 @@ export default function Search({ scene, scope, onClose, onPick, pickMolecule }: 
 
   const results = useMemo(() => {
     const nq = normalize(q), qc = compact(q);
-    const inScope = (e: Entry) => e.places.some((p) => scope === 'both' || p.exam === scope);
+    const inScope = (e: Entry) => e.places.some((p) => inExam(p.exam, scope));
     if (!nq) return pickMolecule ? [] : index.filter((e) => e.kind === 'plate' && inScope(e)).sort((a, b) => a.places[0].plate!.plate - b.places[0].plate!.plate);
     return index
       .map((e) => ({ e, s: score(e, nq, qc) + (inScope(e) ? 8 : 0) }))
@@ -122,7 +122,8 @@ export default function Search({ scene, scope, onClose, onPick, pickMolecule }: 
     else if (ev.key === 'Escape') { ev.preventDefault(); onClose(); }
   };
 
-  const outOfScope = (e: Entry): Exam | null => (scope !== 'both' && !e.places.some((p) => p.exam === scope) ? e.places[0]?.exam ?? null : null);
+  /** The other exam's badge, for a hit the switch fades. */
+  const outOfScope = (e: Entry): Exam | null => (e.places.length && !e.places.some((p) => inExam(p.exam, scope)) ? (scope === 'mid' ? 'final' : 'mid') : null);
 
   return (
     <div className="palette-back" onClick={onClose}>

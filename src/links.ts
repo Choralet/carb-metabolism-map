@@ -1,4 +1,5 @@
 import type { Selection, View } from './Diagram';
+import { MOVED_NODES } from './data/moved';
 
 /**
  * Deep links live in the URL hash, so they work on static hosting and survive the offline cache:
@@ -23,7 +24,11 @@ export function parseHash(hash: string): Link | null {
   const w = +(m[5] ?? 0), h = 1;
   const view = m[3] ? { x: +m[3] - w / 2, y: +m[4] - h / 2, w, h } : undefined;
   if (m[1] === 'plate') return { sel: null, plate: +m[2], view };
-  if (m[1] && KIND[m[1]] && m[2]) return { sel: { kind: KIND[m[1]], id: decodeURIComponent(m[2]) }, view };
+  if (m[1] && KIND[m[1]] && m[2]) {
+    const kind = KIND[m[1]], id = decodeURIComponent(m[2]);
+    // a molecule node removed when the plates were joined: open the one that replaced it
+    return { sel: { kind, id: kind === 'node' ? MOVED_NODES.get(id) ?? id : id }, view };
+  }
   return view ? { sel: null, view } : null;
 }
 

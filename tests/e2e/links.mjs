@@ -16,7 +16,7 @@ export default async function links({ browser, base, check: ok }) {
   await p.goto(`${base}#enz/n_gs`, { waitUntil: 'networkidle' });
   await p.waitForSelector('svg[data-lod]');
   ok((await drawerTitle()) === 'Glutamine synthetase', 'a link opens the drawer on its enzyme');
-  ok(/Both/.test(await p.locator('.scope [aria-checked="true"]').innerText()), 'a link into a hidden exam widens the scope to Both');
+  ok(/Both/.test(await p.locator('.scope [aria-checked="true"]').innerText()), 'a link into a faded exam widens the scope to Both');
   const [x, y, w, h] = await view();
   const cx = x + w / 2, cy = y + h / 2;
   ok(cx > plate22.x && cx < plate22.x + plate22.w && cy > plate22.y && cy < plate22.y + plate22.h, `the camera centres on Plate 22 (${Math.round(cx)}, ${Math.round(cy)})`);
@@ -52,6 +52,17 @@ export default async function links({ browser, base, check: ok }) {
   await p2.goto(copied, { waitUntil: 'networkidle' }); await p2.waitForSelector('svg[data-lod]');
   const a = await view(), b = await view(p2);
   ok(Math.abs(a[0] + a[2] / 2 - (b[0] + b[2] / 2)) < 3 && Math.abs(a[2] - b[2]) < 3, 'opening the copied link frames the same view');
+
+  // a molecule node removed when the plates were joined opens the one that replaced it
+  const p4 = await ctx.newPage();
+  await p4.goto(`${base}#mol/ns_cit`, { waitUntil: 'networkidle' }); await p4.waitForSelector('svg[data-lod]');
+  ok((await p4.locator('.drawer h2').innerText().catch(() => '')) === 'Citrate', 'an old link to a removed copy opens the molecule that replaced it');
+  // a plate made of several rectangles is framed whole: the urea cycle's matrix steps are in view
+  const p5 = await ctx.newPage();
+  await p5.goto(`${base}#plate/23`, { waitUntil: 'networkidle' }); await p5.waitForSelector('svg[data-lod]');
+  const [ux, uy, uw, uh] = await view(p5);
+  const cps = desktopScene.nodes.find((n) => n.id === 'nu_cp');
+  ok(cps.x > ux && cps.x < ux + uw && cps.y > uy && cps.y < uy + uh, `#plate/23 frames the whole L-shaped plate (carbamoyl phosphate at ${cps.x}, ${cps.y})`);
 
   // an unknown id just opens the map
   const p3 = await ctx.newPage();

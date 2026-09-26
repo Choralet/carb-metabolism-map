@@ -84,8 +84,9 @@ export const enzymes: Enzyme[] = [
   // ───────── Gluconeogenesis bypasses ─────────
   { id: 'pc', name: 'Pyruvate carboxylase', short: 'Pyruvate carboxylase', cls: ['ligase'], ec: '6.4.1.1', rev: false, subs: ['pyr'], prods: ['oaa'],
     cofactors: 'ATP + HCO₃⁻ → ADP + Pi',
-    text: ['Bypass 1 (part 1): pyruvate → oxaloacetate. Together with PEP carboxykinase this bypasses pyruvate kinase.',
+    text: ['Bypass 1 (part 1): pyruvate → oxaloacetate, in the mitochondrial matrix. Together with PEP carboxykinase this bypasses pyruvate kinase.',
       'Two routes exist. The first predominates when pyruvate or alanine is the precursor; the second when lactate is the precursor. Which is used depends on precursor availability and the cytosolic need for NADH.',
+      'The map draws the first route: the oxaloacetate leaves the mitochondrion as malate, and PEP carboxykinase acts in the cytosol.',
       'Part III, citrate shuttle (step 10): pyruvate returning to the matrix is carboxylated back to oxaloacetate. With citrate lyase, this is one of the 2 ATP the shuttle spends per acetyl-CoA exported.',
       'Part III, triacylglycerol synthesis: the first step of the abbreviated gluconeogenesis (pyruvate → DHAP) that supplies glycerol 3-phosphate.'], slide: P1 + '28–29 · ' + P3 + '26, 41' },
   { id: 'pepck', name: 'PEP carboxykinase', full: 'Phosphoenolpyruvate carboxykinase', short: 'PEPCK', cls: ['lyase'], ec: '4.1.1.32', rev: false, subs: ['oaa'], prods: ['pep'],
