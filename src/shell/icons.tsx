@@ -17,4 +17,5 @@ export const LinkIcon = () => <svg {...S}><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.
 export const CheckIcon = () => <svg {...S}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>;
 export const SwapIcon = () => <svg {...S}><path d="M7 4 3.5 7.5 7 11" /><path d="M3.5 7.5H17" /><path d="m17 13 3.5 3.5L17 20" /><path d="M20.5 16.5H7" /></svg>;
 export const RouteIcon = () => <svg {...S}><circle cx="5.5" cy="18.5" r="2" /><circle cx="18.5" cy="5.5" r="2" /><path d="M7.5 18.5h6a3.5 3.5 0 0 0 0-7h-3a3.5 3.5 0 0 1 0-7h6" /></svg>;
+export const StudyIcon = () => <svg {...S}><path d="M2.5 9 12 4.5 21.5 9 12 13.5z" /><path d="M6.5 11v4.5c1.6 1.5 3.4 2.2 5.5 2.2s3.9-.7 5.5-2.2V11" /><path d="M21.5 9v5.5" /></svg>;
 export const ResetIcon = () => <svg {...S}><path d="M4 12a8 8 0 1 0 2.3-5.6" /><path d="M4 4v4.5h4.5" /></svg>;

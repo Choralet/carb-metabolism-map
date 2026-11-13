@@ -43,9 +43,14 @@ interface Props {
   onReveal: (key: string, at: DOMRect) => void;
   /** A traced route: only its arrows and molecules stay lit, and its arrows are marked like a highlighter pen. */
   route: { edges: Set<string>; nodes: Set<string> } | null;
+  /**
+   * Study mode: the step on screen. `edge` is the arrow being explained (drawn on, with a token travelling along it
+   * and its cofactors animating in); `node` a molecule to flash instead. `n` restarts the animation on replay.
+   */
+  tour?: { edge?: string; node?: string; n: number } | null;
 }
 
-export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route }: Props) {
+export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route, tour }: Props) {
   const { nodeMap, routed, regGeoms, plateOf, bounds } = geometryOf(scene);
   /** Widest view (map units): enough to see the whole map at once, whichever parts it has, on a screen of any shape. */
   const maxW = () => Math.max(9000, bounds.both.w + 800, ((bounds.both.h + 800) * size.current.w) / size.current.h);
@@ -221,13 +226,55 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     animate({ x: v.x + (v.w - v.w * k) / 2, y: v.y + (v.h - v.h * k) / 2, w, h: v.h * k });
   };
 
+  const flash = (id: string) => {
+    const el = svg.current?.querySelector(`[data-node="${id}"]`);
+    if (el) { el.classList.remove('flash'); void el.getBoundingClientRect(); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+  };
+
+  /**
+   * Study mode: once the camera has arrived, a token travels along the step's arrow and the product flashes when it
+   * gets there. Driven by requestAnimationFrame on the DOM (like the camera), so the animation never re-renders the map.
+   */
+  const token = useRef<SVGGElement>(null);
+  const tokenRaf = useRef(0);
+  useEffect(() => {
+    cancelAnimationFrame(tokenRaf.current);
+    const tk = token.current;
+    if (tk) tk.style.opacity = '0';
+    if (!tour) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const edge = tour.edge ? edges.find((e) => e.id === tour.edge) : undefined;
+    const target = edge ? edge.to : tour.node;
+    const path = edge ? svg.current?.querySelector<SVGPathElement>(`g.eline[data-edge="${edge.id}"] .shaft`) : null;
+    if (!path || !tk || still) {
+      const t = setTimeout(() => { if (target) flash(target); }, still ? 0 : 500);
+      return () => clearTimeout(t);
+    }
+    const len = path.getTotalLength(), WAIT = 520, RUN = Math.min(1700, 700 + len * 1.1);
+    const t0 = performance.now();
+    let flashed = false;
+    const step = (now: number) => {
+      const k = (now - t0 - WAIT) / RUN;
+      if (k >= 0) {
+        const c = Math.min(1, k), e = c < 0.5 ? 2 * c * c : 1 - Math.pow(-2 * c + 2, 2) / 2;
+        const pt = path.getPointAtLength(e * len);
+        tk.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
+        tk.style.opacity = c < 0.92 ? '1' : String((1 - c) / 0.08);
+        if (c >= 1 && !flashed) { flashed = true; if (target) flash(target); }
+      }
+      if (k < 1.05) tokenRaf.current = requestAnimationFrame(step);
+    };
+    tokenRaf.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(tokenRaf.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour?.edge, tour?.node, tour?.n, scene]);
+
   /** Cross-references fly to their target and flash it. */
   const flyTo = (id: string) => {
     const t = nodeMap[id];
     if (!t) return;
     animate(fit({ x: t.x - 420, y: t.y - 280, w: 840, h: 560 }));
-    const el = svg.current?.querySelector(`[data-node="${id}"]`);
-    if (el) { el.classList.remove('flash'); void el.getBoundingClientRect(); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+    flash(id);
   };
 
   // Hovering an enzyme lights up every place it is drawn. Done on the DOM, not in React state, so hovering never
@@ -350,7 +397,8 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const clickable = !!enz && style !== 'link';
     const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
     const onRoute = !!route?.edges.has(e.id);
-    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope({ exam: e.lineExam ?? e.exam }) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}`;
+    const now = tour?.edge === e.id;
+    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope({ exam: e.lineExam ?? e.exam }) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}${now ? ' now' : ''}`;
 
     // co-substrate curving into the label / co-product curving out of it
     const box = enz && !e.noPill && style !== 'link' ? enzBox(enz.id) : { w: 0, h: 0 };
@@ -374,7 +422,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
 
     return (
       <g key={e.id} className={cls} data-enz={enz?.id} data-edge={e.id}>
-        {onRoute && <path className="route-glow" d={d} />}
+        {onRoute && <path key={now ? `now${tour!.n}` : 'glow'} className="route-glow" d={d} pathLength={now ? 1 : undefined} />}
         {feed}
         {outLine}
         {harpoon
@@ -403,7 +451,8 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const cls0 = enz ? enz.cls[0] : 'other';
     const hl = on && filter.size > 0 && clsOk(e);
     const pp = paperAt(L.x, L.y);
-    const cls = `elabel-g ${pp}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}`;
+    const now = tour?.edge === e.id;
+    const cls = `elabel-g ${pp}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${now ? ' now' : ''}`;
 
     let tag: React.JSX.Element | null = null;
     if (e.tags) {
@@ -422,14 +471,14 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       } else {
         const a = arcGeom(P, onLine, side, r.dir, { inn: !!parts.inn, out: !!parts.out });
         tag = (
-          <g className={`arc lod-near${resultClass(quiz, tagKey(e))}`}>
-            <path className="arc-line" d={a.d} markerEnd="url(#ah-arc)" />
+          <g key={now ? `now${tour!.n}` : 'arc'} className={`arc lod-near${resultClass(quiz, tagKey(e))}`}>
+            <path className="arc-line" d={a.d} markerEnd="url(#ah-arc)" pathLength={1} />
             {tagHidden
               ? <QMark x={a.qAnchor === 'start' ? a.q.x + 17 : a.qAnchor === 'end' ? a.q.x - 17 : a.q.x} y={a.q.y - 4} k={tagKey(e)} activate={activate} onKey={onKey} />
               : (
                 <>
-                  {parts.inn && tagText(parts.inn, a.inAt.x, a.inAt.y, a.inAnchor)}
-                  {parts.out && tagText(parts.out, a.outAt.x, a.outAt.y, a.outAnchor)}
+                  {parts.inn && tagText(parts.inn, a.inAt.x, a.inAt.y, a.inAnchor, ' t-in')}
+                  {parts.out && tagText(parts.out, a.outAt.x, a.outAt.y, a.outAnchor, ' t-out')}
                 </>
               )}
           </g>
@@ -684,6 +733,11 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
         {visNodes.map(renderNode)}
 
         {visRegions.map(renderFarTitle)}
+
+        <g ref={token} className="tour-token" style={{ opacity: 0 }} aria-hidden="true">
+          <circle className="tt-halo" r={22} />
+          <circle className="tt-core" r={9} />
+        </g>
       </svg>
 
       <div className="zoom" role="group" aria-label="Zoom">

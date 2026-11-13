@@ -1,7 +1,7 @@
 import type { Scope } from '../data/types';
-import { BookIcon, LayersIcon, MoonIcon, QuizIcon, SearchIcon, SunIcon } from './icons';
+import { BookIcon, LayersIcon, MoonIcon, QuizIcon, SearchIcon, StudyIcon, SunIcon } from './icons';
 
-export type Panel = 'plates' | 'layers' | null;
+export type Panel = 'plates' | 'layers' | 'study' | null;
 
 const SCOPES: { id: Scope; label: string; parts: string; hint: string }[] = [
   { id: 'mid', label: 'Midterm', parts: 'I–II', hint: 'Parts I–II only: the carbohydrate map' },
@@ -14,11 +14,12 @@ interface Props {
   onSearch: () => void;
   panel: Panel; onPanel: (p: Panel) => void;
   quizOn: boolean; onQuiz: () => void;
+  studying: boolean;
   dark: boolean; onTheme: () => void;
   highlights: number;
 }
 
-export default function TopBar({ scope, onScope, onSearch, panel, onPanel, quizOn, onQuiz, dark, onTheme, highlights }: Props) {
+export default function TopBar({ scope, onScope, onSearch, panel, onPanel, quizOn, onQuiz, studying, dark, onTheme, highlights }: Props) {
   const toggle = (p: Panel) => onPanel(panel === p ? null : p);
   return (
     <header className="topbar">
@@ -42,6 +43,9 @@ export default function TopBar({ scope, onScope, onSearch, panel, onPanel, quizO
         </button>
         <button className={`tool${panel === 'layers' ? ' on' : ''}`} data-panel-toggle onClick={() => toggle('layers')} aria-expanded={panel === 'layers'} title="Layers & highlights">
           <LayersIcon /><span>Layers</span>{highlights > 0 && <b className="badge-dot">{highlights}</b>}
+        </button>
+        <button className={`tool study${panel === 'study' || studying ? ' on' : ''}`} data-panel-toggle onClick={() => toggle('study')} aria-expanded={panel === 'study'} title="Study mode: walk through a pathway step by step">
+          <StudyIcon /><span>Study</span>
         </button>
         <button className={`tool quiz${quizOn ? ' on' : ''}`} onClick={onQuiz} aria-pressed={quizOn} title="Quiz mode">
           <QuizIcon /><span>{quizOn ? 'Quizzing' : 'Quiz'}</span>

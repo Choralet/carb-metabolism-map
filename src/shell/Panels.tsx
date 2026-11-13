@@ -18,7 +18,7 @@ export const PART_TITLE: Record<Part, string> = {
 const isFinal = (p: Part) => p === 'III' || p === 'IV';
 
 /** Closes on Escape or a click outside (but not on the button that opened it). */
-function usePanelDismiss(onClose: () => void, ref: React.RefObject<HTMLElement | null>) {
+export function usePanelDismiss(onClose: () => void, ref: React.RefObject<HTMLElement | null>) {
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     const down = (e: PointerEvent) => {

@@ -56,7 +56,7 @@ src/map/         geometry.ts (text-measured boxes, arrow routing, cofactor arcs;
 src/Diagram.tsx  the SVG map: camera, detail by zoom level, rendering, quiz / route / highlight states
 src/Drawer.tsx   details panel (enzyme, molecule, card, regulation), structure drawings, study tables
 src/App.tsx      app state: scope, selection and deep links, quiz, route tracer, panels
-src/shell/       TopBar, Search (also the molecule picker), Panels (Plates, Layers, Key), QuizBar, QuizAsk, RouteBar
+src/shell/       TopBar, Search (also the molecule picker), Panels (Plates, Layers, Key), QuizBar, QuizAsk, RouteBar, Study (study mode)
 src/text.ts      sub/superscript runs, text measuring and wrapping, search normalisation
 src/rich.tsx     <Rich> (HTML) and <Tspans> (SVG) for text containing ₂ ⁺ ⁻ …
 src/quiz.ts · grade.ts · route.ts · links.ts · locate.ts
@@ -77,6 +77,7 @@ Data (`src/data/`):
 - `moved.ts` — node ids removed since they were published, and the node that replaced each (old `#mol/` links and saved quiz answers follow it).
 - One scene serves desktop and phone; plates stay at most ~1300 units wide.
 - `pools.ts` — the route tracer's compartment splits (see Recipes).
+- `tours.ts` — study mode's chapters: steps in slide order, each an arrow or molecule with a short narration and its slide.
 - `chem.ts` — `cx()`, which builds SMILES with labelled pseudo-atoms (R, CoA, ACP).
 - `structures.json` — generated. Don't edit it by hand.
 
@@ -188,7 +189,7 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
 - **Deep links:**
   - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`.
   - Opening the drawer pushes one history entry and switching selections replaces it, so Back closes the drawer. Keep that behaviour.
-- **localStorage** holds per-viewer conveniences only: `atlas-scope`, `atlas-theme`, `atlas-key`, `atlas-quiz`. Wrap every access in try/catch.
+- **localStorage** holds per-viewer conveniences only: `atlas-scope`, `atlas-theme`, `atlas-key`, `atlas-quiz`, `atlas-study` (finished study chapters). Wrap every access in try/catch.
 - **`package-lock.json`:** don't regenerate it wholesale, because some npm versions drop platform `libc` fields. Make minimal changes and confirm with `npm ci`.
 
 ## Before you push
