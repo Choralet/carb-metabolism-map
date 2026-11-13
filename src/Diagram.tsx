@@ -47,7 +47,7 @@ interface Props {
    * Study mode: the step on screen. `edge` is the arrow being explained (drawn on, with a token travelling along it
    * and its cofactors animating in); `node` a molecule to flash instead. `n` restarts the animation on replay.
    */
-  tour?: { edge?: string; node?: string; n: number } | null;
+  tour?: { edge?: string; node?: string; back?: boolean; n: number } | null;
 }
 
 export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route, tour }: Props) {
@@ -244,7 +244,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     if (!tour) return;
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const edge = tour.edge ? edges.find((e) => e.id === tour.edge) : undefined;
-    const target = edge ? edge.to : tour.node;
+    const target = edge ? (tour.back ? edge.from : edge.to) : tour.node;
     const path = edge ? svg.current?.querySelector<SVGPathElement>(`g.eline[data-edge="${edge.id}"] .shaft`) : null;
     if (!path || !tk || still) {
       const t = setTimeout(() => { if (target) flash(target); }, still ? 0 : 500);
@@ -257,7 +257,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
       const k = (now - t0 - WAIT) / RUN;
       if (k >= 0) {
         const c = Math.min(1, k), e = c < 0.5 ? 2 * c * c : 1 - Math.pow(-2 * c + 2, 2) / 2;
-        const pt = path.getPointAtLength(e * len);
+        const pt = path.getPointAtLength((tour.back ? 1 - e : e) * len);
         tk.setAttribute('transform', `translate(${pt.x.toFixed(1)},${pt.y.toFixed(1)})`);
         tk.style.opacity = c < 0.92 ? '1' : String((1 - c) / 0.08);
         if (c >= 1 && !flashed) { flashed = true; if (target) flash(target); }
@@ -267,7 +267,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     tokenRaf.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(tokenRaf.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tour?.edge, tour?.node, tour?.n, scene]);
+  }, [tour?.edge, tour?.node, tour?.back, tour?.n, scene]);
 
   /** Cross-references fly to their target and flash it. */
   const flyTo = (id: string) => {
@@ -398,7 +398,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const selTarget: Selection = enz ? { kind: 'enz', id: enz.id } : null;
     const onRoute = !!route?.edges.has(e.id);
     const now = tour?.edge === e.id;
-    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope({ exam: e.lineExam ?? e.exam }) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}${now ? ' now' : ''}`;
+    const cls = `eline ${style}${irrev ? ' irrev' : ''}${on ? '' : ' off'}${inScope({ exam: e.lineExam ?? e.exam }) ? '' : ' out'}${sel ? ' sel' : ''}${onRoute ? ' route' : ''}${now ? ' now' : ''}${now && tour?.back ? ' back' : ''}`;
 
     // co-substrate curving into the label / co-product curving out of it
     const box = enz && !e.noPill && style !== 'link' ? enzBox(enz.id) : { w: 0, h: 0 };
@@ -452,7 +452,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const hl = on && filter.size > 0 && clsOk(e);
     const pp = paperAt(L.x, L.y);
     const now = tour?.edge === e.id;
-    const cls = `elabel-g ${pp}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${now ? ' now' : ''}`;
+    const cls = `elabel-g ${pp}${on ? '' : ' off'}${inScope(e) ? '' : ' out'}${now ? ' now' : ''}${now && tour?.back ? ' back' : ''}`;
 
     let tag: React.JSX.Element | null = null;
     if (e.tags) {

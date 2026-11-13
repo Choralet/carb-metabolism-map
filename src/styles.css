@@ -119,7 +119,6 @@ main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .tool { display: flex; align-items: center; gap: 6px; border: 1px solid transparent; background: transparent; padding: 7px 10px; border-radius: 8px; font-size: 13px; font-weight: 500; position: relative; white-space: nowrap; }
 .tool:hover { border-color: var(--hair); background: var(--paper); }
 .tool.on { background: var(--paper-2); border-color: var(--hair); }
-.tool.quiz { border-color: var(--ink); }
 .tool.quiz.on { background: var(--quiz); border-color: var(--quiz); color: var(--panel); }
 .tool.icon-only { padding: 7px 9px; }
 .badge-dot { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--enz); color: var(--panel); font: 600 10px/16px var(--f-sans); text-align: center; padding: 0 4px; }
@@ -622,12 +621,14 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
   .elabel-g.now .t-in, .elabel-g.now .t-out, .elabel-g.now > .tag, .elabel-g.now .elabel .ko { animation: none; }
 }
 
-.study-bar { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--hair); border-radius: 14px; box-shadow: 0 12px 34px rgba(40, 30, 15, .2); z-index: 7; overflow: hidden; }
+.study-bar { position: absolute; left: 50%; transition: left .18s ease-out; bottom: 18px; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--hair); border-radius: 14px; box-shadow: 0 12px 34px rgba(40, 30, 15, .2); z-index: 7; overflow: hidden; }
 .sb-head { display: flex; align-items: center; gap: 8px; padding: 9px 8px 0 16px; }
 .sb-chapter { font: 500 10.5px var(--f-mono); letter-spacing: .08em; color: var(--ink-3); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-chapter b { color: var(--fin); font-weight: 500; }
 .sb-body { padding: 4px 16px 6px; }
 .sb-body.enter { animation: sb-enter .35s ease-out; }
+/* the details drawer takes the right of the screen: keep the card (and its Next button) beside it */
+@media (min-width: 721px) { .study-bar.beside { left: calc((100% - 440px) / 2); width: min(640px, calc(100% - 472px)); } }
 @keyframes sb-enter { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
 .sb-title { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 6px; font: 600 19px var(--f-display); color: var(--ink); }
 .sb-num { font: 500 12px var(--f-mono); color: var(--paper); background: var(--enz); border-radius: 999px; min-width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0 6px; flex: none; transform: translateY(-2px); }
@@ -635,6 +636,9 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 .sb-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .sb-chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--hair); color: var(--ink-2); background: var(--paper); }
 .sb-chip.enz { color: var(--enz); border-color: color-mix(in srgb, var(--enz) 35%, transparent); }
+button.sb-chip { cursor: pointer; font: inherit; font-size: 12px; }
+button.sb-chip:hover { border-color: var(--ink-3); background: var(--paper-2); }
+.sb-chip.mol { font-family: var(--f-serif); font-weight: 600; }
 .sb-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 16px; }
 .sb-dots { display: flex; gap: 5px; flex: 1; flex-wrap: wrap; }
 .sb-dot { width: 22px; height: 6px; border-radius: 3px; border: 0; padding: 0; background: var(--hair); cursor: pointer; }
@@ -667,3 +671,40 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
   .sb-btn { padding: 8px 11px; }
   .sb-dot { width: 16px; }
 }
+
+/* ── lecture slide window (study mode) ────────────────────────────── */
+.slide-viewer { position: absolute; z-index: 8; background: var(--panel); border: 1px solid var(--hair); border-radius: 12px; box-shadow: 0 14px 36px rgba(40, 30, 15, .22); overflow: hidden; animation: pop .18s ease-out; touch-action: none; }
+.sv-head { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 4px 0 8px; cursor: grab; user-select: none; border-bottom: 1px solid var(--hair-2); }
+.sv-head:active { cursor: grabbing; }
+.sv-grip { color: var(--ink-3); font-size: 14px; }
+.sv-title { flex: 1; min-width: 0; font: 500 11.5px var(--f-mono); letter-spacing: .04em; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv-title b { color: var(--fin); font-weight: 500; }
+.sv-tools { display: flex; align-items: center; gap: 2px; }
+.sv-btn { width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font: 500 18px/1 var(--f-sans); display: grid; place-items: center; cursor: pointer; }
+.sv-btn:hover:not(:disabled) { background: var(--paper-2); color: var(--ink); }
+.sv-btn:disabled { opacity: .35; cursor: default; }
+.sv-back { border: 1px solid var(--hair); background: var(--paper); color: var(--enz); border-radius: 7px; padding: 3px 8px; font: 500 12px var(--f-sans); cursor: pointer; white-space: nowrap; }
+.sv-body { position: relative; overflow: hidden; background: #fff; cursor: zoom-in; }
+.sv-body.zoomed { cursor: grab; }
+.sv-body img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }
+.sv-hint { position: absolute; right: 8px; bottom: 6px; font: 500 10.5px var(--f-sans); color: #5E554A; background: rgba(255, 255, 255, .85); border-radius: 5px; padding: 1px 6px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.sv-body:hover .sv-hint { opacity: 1; }
+.sv-resize { position: absolute; right: 0; bottom: 0; width: 22px; height: 22px; cursor: nwse-resize; touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, var(--ink-3) 50%, var(--ink-3) 56%, transparent 56%, transparent 68%, var(--ink-3) 68%, var(--ink-3) 74%, transparent 74%); opacity: .8; }
+:root[data-theme="dark"] .sv-body { background: #f4f1ea; }
+@media (max-width: 720px) {
+  .sv-head { height: 38px; }
+  .sv-btn { width: 32px; height: 32px; }
+  .sv-resize { width: 28px; height: 28px; }
+}
+.sb-meta { align-items: center; }
+.sb-arrow { color: var(--ink-3); font-size: 13px; }
+.st-note.first { margin: 6px 0 4px; }
+.st-resume { width: 100%; justify-content: center; margin: 8px 0 2px; }
+.st-count { float: right; letter-spacing: .04em; }
+.sb-chip { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) { .sb-chip.mol, .sb-arrow { display: none; } }
+/* a step read against the arrow: its glow draws from the head, and both cofactor labels come in together */
+.eline.now.back .route-glow { stroke-dashoffset: -1; animation-name: draw-off; }
+@keyframes draw-off { from { stroke-dashoffset: -1; } to { stroke-dashoffset: 0; } }
+.elabel-g.now.back .t-in, .elabel-g.now.back .t-out { animation: tag-in .45s .9s both; }

@@ -15,7 +15,8 @@ import RouteBar from './shell/RouteBar';
 import { identityName, traceRoute } from './route';
 import Search from './shell/Search';
 import TopBar, { type Panel } from './shell/TopBar';
-import { StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
+import { measureReserve, StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
+import SlideViewer, { slideOf } from './shell/SlideViewer';
 import { tourById, tours } from './data/tours';
 import { cofactors } from './data/cofactors';
 import { bestPlace, PHONE_QUERY, placesOf, regionView, viewAround } from './locate';
@@ -195,13 +196,22 @@ export default function App() {
   const studyNow = useMemo(() => {
     if (!study || !studyTour || study.done) return null;
     const s = studyTour.steps[study.step];
-    return { edge: s.edge, node: s.node, n: study.n };
+    return { edge: s.edge, node: s.node, back: s.back, n: study.n };
   }, [study, studyTour]);
+  const [slidesOn, setSlidesOn] = useState(true);
+  const frameStep = useCallback((tourId: string, step: number) => {
+    go(stepView(tourById[tourId].steps[step], scene, phone, measureReserve(phone)));
+  }, [go, scene, phone]);
   const showStep = (tourId: string, step: number) => {
-    const t = tourById[tourId];
     setStudy((s) => ({ tour: tourId, step, done: false, n: (s?.n ?? 0) + 1 }));
-    go(stepView(t.steps[step], scene, phone));
+    frameStep(tourId, step);
   };
+  /** After the slide window is moved, resized, shown or hidden, frame the step again around it. */
+  const studyRef = useRef(study);
+  studyRef.current = study;
+  const reframe = useCallback(() => { const s = studyRef.current; if (s && !s.done) frameStep(s.tour, s.step); }, [frameStep]);
+  useEffect(() => { const t = setTimeout(reframe, 60); return () => clearTimeout(t); }, [slidesOn, reframe]);
+  const studySlide = study && studyTour ? slideOf(studyTour.steps[study.done ? studyTour.steps.length - 1 : study.step].slide) : null;
   const startTour = (tourId: string) => {
     setPanel(null); closeDrawer(); setQuizOn(false); setAsk(null); setRouteEnds(null);
     // a chapter of the faded exam widens the switch to Both for now, so the walkthrough is never on faded ink
@@ -219,7 +229,9 @@ export default function App() {
     const pts = ids.map((id) => nodeMap[id]).filter(Boolean);
     const x0 = Math.min(...pts.map((p) => p.x)) - 260, x1 = Math.max(...pts.map((p) => p.x)) + 260;
     const y0 = Math.min(...pts.map((p) => p.y)) - 140, y1 = Math.max(...pts.map((p) => p.y)) + 140;
-    go({ x: x0, y: y0, w: x1 - x0, h: (y1 - y0) / (phone ? 0.58 : 0.7) });
+    const res = measureReserve(phone);
+    const W = (x1 - x0) / (1 - res.l - res.r), H = (y1 - y0) / (1 - res.t - res.b);
+    go({ x: x0 - res.l * W, y: y0 - res.t * H, w: W, h: H });
   };
   const quizTourPlate = () => {
     if (!studyTour) return;
@@ -353,10 +365,12 @@ export default function App() {
 
         {study && studyTour && (
           <StudyBar scene={scene} tour={studyTour} step={study.step} done={study.done}
+            beside={!!selection} slideHidden={!slidesOn} onShowSlide={() => setSlidesOn(true)} onSelect={select}
             onStep={(i) => showStep(study.tour, i)} onFinish={finishTour} onReplay={() => showStep(study.tour, 0)}
             onNext={(() => { const i = tours.indexOf(studyTour); const nx = tours[i + 1]; return nx ? () => startTour(nx.id) : null; })()}
             onQuiz={quizTourPlate} onExit={() => setStudy(null)} />
         )}
+        {study && studySlide && slidesOn && <SlideViewer slide={studySlide} phone={phone} onClose={() => setSlidesOn(false)} onMoved={reframe} />}
 
         {routeEnds && !study && (
           <RouteBar scene={scene} from={routeEnds.from} to={routeEnds.to} route={traced} onGo={go}

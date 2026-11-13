@@ -44,7 +44,7 @@ export default function TopBar({ scope, onScope, onSearch, panel, onPanel, quizO
         <button className={`tool${panel === 'layers' ? ' on' : ''}`} data-panel-toggle onClick={() => toggle('layers')} aria-expanded={panel === 'layers'} title="Layers & highlights">
           <LayersIcon /><span>Layers</span>{highlights > 0 && <b className="badge-dot">{highlights}</b>}
         </button>
-        <button className={`tool study${panel === 'study' || studying ? ' on' : ''}`} data-panel-toggle onClick={() => toggle('study')} aria-expanded={panel === 'study'} title="Study mode: walk through a pathway step by step">
+        <button className={`tool study-btn${panel === 'study' || studying ? ' on' : ''}`} data-panel-toggle onClick={() => toggle('study')} aria-expanded={panel === 'study'} title="Study mode: walk through a pathway step by step">
           <StudyIcon /><span>Study</span>
         </button>
         <button className={`tool quiz${quizOn ? ' on' : ''}`} onClick={onQuiz} aria-pressed={quizOn} title="Quiz mode">

@@ -43,6 +43,7 @@ Pathways join where they share a molecule, and they are drawn once:
 - `npm run test:e2e` — browser tests against the build (run `npm run build` first). `tests/e2e/run.mjs` serves `dist/` with `vite preview` and runs each suite in one Chromium:
   - `smoke.mjs` — main features;
   - `links.mjs` — deep links and history;
+  - `study.mjs` — study mode: stepping, the slide window following the step, details from the study card;
   - `layout.mjs` — **no label may overlap another label or cross an arrow**, plate tabs and membrane captions included. It measures every label from the browser's own layout and names both parties and the map position of any collision.
   - **Browser choice:** `CHROMIUM_PATH` if set, else an installed Google Chrome, else Playwright's own build (`npx playwright-core install chromium`).
   - `HEADED=1` shows the window.
@@ -56,7 +57,8 @@ src/map/         geometry.ts (text-measured boxes, arrow routing, cofactor arcs;
 src/Diagram.tsx  the SVG map: camera, detail by zoom level, rendering, quiz / route / highlight states
 src/Drawer.tsx   details panel (enzyme, molecule, card, regulation), structure drawings, study tables
 src/App.tsx      app state: scope, selection and deep links, quiz, route tracer, panels
-src/shell/       TopBar, Search (also the molecule picker), Panels (Plates, Layers, Key), QuizBar, QuizAsk, RouteBar, Study (study mode)
+src/shell/       TopBar, Search (also the molecule picker), Panels (Plates, Layers, Key), QuizBar, QuizAsk, RouteBar, Study (study mode), SlideViewer
+public/slides/   the Part III and IV lecture slides as WebP (p3/, p4/; slide 1, the title slide, is left out), shown in study mode
 src/text.ts      sub/superscript runs, text measuring and wrapping, search normalisation
 src/rich.tsx     <Rich> (HTML) and <Tspans> (SVG) for text containing ₂ ⁺ ⁻ …
 src/quiz.ts · grade.ts · route.ts · links.ts · locate.ts
@@ -77,7 +79,7 @@ Data (`src/data/`):
 - `moved.ts` — node ids removed since they were published, and the node that replaced each (old `#mol/` links and saved quiz answers follow it).
 - One scene serves desktop and phone; plates stay at most ~1300 units wide.
 - `pools.ts` — the route tracer's compartment splits (see Recipes).
-- `tours.ts` — study mode's chapters: steps in slide order, each an arrow or molecule with a short narration and its slide.
+- `tours.ts` — study mode's chapters (final exam only): steps in slide order, each an arrow or molecule with a short narration and its slide.
 - `chem.ts` — `cx()`, which builds SMILES with labelled pseudo-atoms (R, CoA, ACP).
 - `structures.json` — generated. Don't edit it by hand.
 
@@ -169,6 +171,14 @@ An `xref` node is a note beside a molecule: `link` is the local anchor, and `tar
 - To show it, add a `kind: 'card'` node on a plate.
 - Cards with a table get a table glyph and are listed under "Study tables" in the Plates panel.
 
+### Study chapter
+- A `Tour` in `tours.ts`: `{ id, part, title, sub, slides, steps }`, Parts III and IV only, in lecture order (by the first slide each chapter uses). Ids are permanent (progress keys on them).
+- A step is one arrow (`edge`) or one drawn node (`node`), with a short `title`, a `say` of one or two plain sentences, and the `slide` it follows (`'Part III · slide 13'`). The slide window shows that slide.
+  - `also` lights more arrows with the step (one precursor, several products); `back` runs the animation against a reversible arrow (glycerol 3-phosphate → DHAP).
+  - Only what the slides show, in easy words. A step on a midterm arrow is allowed only where a final slide names it (`SHARED`).
+- `npm run check` rejects unknown ids, midterm-only arrows, missing slide images and chapters out of order.
+- New slides: render the deck to `public/slides/p3|p4/<n>.webp` (1920 px wide; `pdftoppm -scale-to-x 1920` then `ffmpeg -c:v libwebp -quality 74`). They are cached at runtime, not precached.
+
 ### Route-tracer pools
 When you add a node for a molecule that exists in both the matrix and the cytosol, list the node in `pools.ts`. Examples: acetyl-CoA, fatty acyl-CoA, oxaloacetate, malate, citrate, aspartate, glutamate. Otherwise routes jump straight across membranes.
 
@@ -189,7 +199,7 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
 - **Deep links:**
   - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`.
   - Opening the drawer pushes one history entry and switching selections replaces it, so Back closes the drawer. Keep that behaviour.
-- **localStorage** holds per-viewer conveniences only: `atlas-scope`, `atlas-theme`, `atlas-key`, `atlas-quiz`, `atlas-study` (finished study chapters). Wrap every access in try/catch.
+- **localStorage** holds per-viewer conveniences only: `atlas-scope`, `atlas-theme`, `atlas-key`, `atlas-quiz`, `atlas-study` (finished study chapters), `atlas-slides` (the slide window's position and size). Wrap every access in try/catch.
 - **`package-lock.json`:** don't regenerate it wholesale, because some npm versions drop platform `libc` fields. Make minimal changes and confirm with `npm ci`.
 
 ## Before you push

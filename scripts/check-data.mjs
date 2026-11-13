@@ -1,7 +1,7 @@
 // Consistency checks for the hand-written map data. Run with `npm run check` (also part of `npm run build`).
 // Errors (broken references, missing slide citations, stale structure drawings) fail the build; warnings are
 // printed for things that are probably, but not certainly, mistakes.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { desktopScene, phoneScene } from '../src/data/scene.ts';
 import { enzymes, classes } from '../src/data/enzymes.ts';
 import { molecules } from '../src/data/molecules.ts';
@@ -13,6 +13,7 @@ import { onPlate } from '../src/data/plate.ts';
 import { SHARED, SHARED_LINES } from '../src/data/atlas.ts';
 import { MOVED_NODES } from '../src/data/moved.ts';
 import { examOfSlide } from '../src/data/types.ts';
+import { tours } from '../src/data/tours.ts';
 
 const errors = [];
 const warnings = [];
@@ -153,8 +154,50 @@ const structures = JSON.parse(readFileSync(new URL('../src/data/structures.json'
 for (const m of molecules) if (m.smiles && !structures[m.id]) err(`molecule ${m.id} has SMILES but no drawing: run "npm run structures"`);
 for (const id of Object.keys(structures)) if (!mol.has(id)) warn(`structures.json has a drawing for unknown molecule "${id}"`);
 
+// study mode: every step points at something drawn, of the final exam, and cites a slide whose image ships with the site
+{
+  const edgeById = new Map(desktopScene.edges.map((e) => [e.id, e]));
+  const nodeIds = new Set(desktopScene.nodes.map((x) => x.id));
+  const finalish = (e) => (e.exam === 'final' || e.exam === 'both');
+  const seen = new Set();
+  const lastFirst = {};
+  for (const t of tours) {
+    const at = `tour ${t.id}`;
+    if (seen.has(t.id)) err(`${at}: duplicate chapter id`);
+    seen.add(t.id);
+    if (t.part !== 'III' && t.part !== 'IV') err(`${at}: study mode covers the final (Parts III and IV) only`);
+    if (!t.steps.length) err(`${at}: no steps`);
+    const stepIds = new Set();
+    let first = Infinity;
+    for (const st of t.steps) {
+      const sat = `${at} step ${st.id}`;
+      if (stepIds.has(st.id)) err(`${sat}: duplicate step id`);
+      stepIds.add(st.id);
+      if (!!st.edge === !!st.node) err(`${sat}: needs exactly one of edge or node`);
+      for (const id of [st.edge, ...(st.also ?? [])].filter(Boolean)) {
+        const e = edgeById.get(id);
+        if (!e) err(`${sat}: unknown edge "${id}"`);
+        else if (!finalish(e)) err(`${sat}: edge "${id}" is midterm material (list it in SHARED if a final slide names it)`);
+      }
+      if (st.node && !nodeIds.has(st.node)) err(`${sat}: unknown node "${st.node}"`);
+      if (st.back && edgeById.get(st.edge)?.dir !== 'both') err(`${sat}: "back" needs a reversible (dir: 'both') arrow`);
+      const m = st.slide.match(/^Part (III|IV) · slides? (\d+)/);
+      if (!m) { err(`${sat}: slide "${st.slide}" is not a Part III/IV citation`); continue; }
+      if (m[1] !== t.part) err(`${sat}: cites Part ${m[1]} in a Part ${t.part} chapter`);
+      const img = new URL(`../public/slides/${m[1] === 'III' ? 'p3' : 'p4'}/${m[2]}.webp`, import.meta.url);
+      if (!existsSync(img)) err(`${sat}: no image for ${st.slide} (public/slides)`);
+      first = Math.min(first, +m[2]);
+      if (!st.title.trim() || !st.say.trim()) err(`${sat}: needs a title and narration`);
+      if (st.say.length > 280) warn(`${sat}: narration is ${st.say.length} characters; keep it to a sentence or two`);
+    }
+    // chapters run in lecture order, by the first slide they use
+    if (first < (lastFirst[t.part] ?? 0)) err(`${at}: out of lecture order (starts at slide ${first}, after a chapter that starts later)`);
+    lastFirst[t.part] = first;
+  }
+}
+
 for (const w of warnings) console.log(`  warn  ${w}`);
 for (const e of errors) console.log(`  ERROR ${e}`);
 const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
-console.log(`data check: ${enzymes.length} enzymes, ${molecules.length} molecules, ${cards.length} cards, ${desktopScene.nodes.length} nodes, ${desktopScene.edges.length} edges — ${n(errors.length, 'error')}, ${n(warnings.length, 'warning')}`);
+console.log(`data check: ${enzymes.length} enzymes, ${molecules.length} molecules, ${cards.length} cards, ${desktopScene.nodes.length} nodes, ${desktopScene.edges.length} edges, ${tours.length} study chapters — ${n(errors.length, 'error')}, ${n(warnings.length, 'warning')}`);
 if (errors.length) process.exit(1);

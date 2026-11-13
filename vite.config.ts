@@ -38,6 +38,12 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
+            // lecture slides (study mode): each one is cached the first time it is shown, so they work offline after
+            urlPattern: ({ url }) => url.pathname.includes('/slides/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'slides', expiration: { maxEntries: 120 } },
+          },
+          {
             // anything under /assets/ that was not precached (i.e. the Ketcher chunks)
             urlPattern: ({ url }) => url.pathname.includes('/assets/'),
             handler: 'CacheFirst',

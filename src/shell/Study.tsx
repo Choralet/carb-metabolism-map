@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { enzById } from '../data/enzymes';
 import { tours, type Tour, type TourStep } from '../data/tours';
 import type { Part, Scene } from '../data/types';
-import type { View } from '../Diagram';
-import { geometryOf, nodeBox } from '../map/geometry';
+import type { Selection, View } from '../Diagram';
+import { geometryOf, labelOf, nodeBox } from '../map/geometry';
 import { Rich } from '../rich';
 import { CheckIcon, CloseIcon } from './icons';
 import { PART_TITLE, usePanelDismiss } from './Panels';
@@ -13,19 +13,47 @@ export function tourTrail(tour: Tour, upTo: number, scene: Scene): { edges: Set<
   const edges = new Set<string>(), nodes = new Set<string>();
   const byId = new Map(scene.edges.map((e) => [e.id, e]));
   tour.steps.slice(0, upTo + 1).forEach((s) => {
-    const e = s.edge ? byId.get(s.edge) : undefined;
-    if (e) { edges.add(e.id); nodes.add(e.from); nodes.add(e.to); if (e.feed) nodes.add(e.feed); if (e.out) nodes.add(e.out); }
+    for (const id of [s.edge, ...(s.also ?? [])]) {
+      const e = id ? byId.get(id) : undefined;
+      if (e) { edges.add(e.id); nodes.add(e.from); nodes.add(e.to); if (e.feed) nodes.add(e.feed); if (e.out) nodes.add(e.out); }
+    }
     if (s.node) nodes.add(s.node);
   });
   return { edges, nodes };
 }
 
+/** Parts of the screen covered by the study card and the slide window, as fractions of the map's width and height. */
+export interface Reserve { l: number; r: number; t: number; b: number }
+
 /**
- * Where the camera goes for a step: the arrow with both its molecules, at reading size, raised so the study card at
- * the bottom of the screen does not cover it. Phones are capped at ~620 map units across, the widest view at which
- * the reaction labels (cofactors) are still drawn on a 390 px screen.
+ * What the study card and slide window cover right now, measured from the page. The slide window is avoided on
+ * whichever side costs the least room (a window in a top corner reserves the top, a tall one at the left the left).
  */
-export function stepView(step: TourStep, scene: Scene, phone: boolean): View {
+export function measureReserve(phone: boolean): Reserve {
+  const main = document.querySelector('main')?.getBoundingClientRect();
+  const res: Reserve = { l: 0, r: 0, t: 0, b: phone ? 0.42 : 0.3 };
+  if (!main) return res;
+  const bar = document.querySelector('.study-bar')?.getBoundingClientRect();
+  if (bar) res.b = Math.min(0.6, (main.bottom - bar.top + 8) / main.height);
+  const sv = document.querySelector('.slide-viewer')?.getBoundingClientRect();
+  if (sv) {
+    const opts = {
+      l: (sv.right - main.left + 8) / main.width, r: (main.right - sv.left + 8) / main.width,
+      t: (sv.bottom - main.top + 8) / main.height, b: (main.bottom - sv.top + 8) / main.height,
+    };
+    const side = (Object.keys(opts) as (keyof Reserve)[]).sort((a, b) => opts[a] - opts[b])[0];
+    res[side] = Math.max(res[side], Math.min(0.5, opts[side]));
+  }
+  if (res.t + res.b > 0.8) res.t = 0.8 - res.b;
+  return res;
+}
+
+/**
+ * Where the camera goes for a step: the arrow with both its molecules, at reading size, placed in the part of the
+ * screen the study card and slide window leave free. Phones are capped at ~620 map units across, the widest view at
+ * which the reaction labels (cofactors) are still drawn on a 390 px screen.
+ */
+export function stepView(step: TourStep, scene: Scene, phone: boolean, res: Reserve): View {
   const { nodeMap, routed } = geometryOf(scene);
   const pts: { x: number; y: number }[] = [];
   const boxAt = (id: string) => { const b = nodeBox(nodeMap[id]); pts.push({ x: b.c.x - b.hw, y: b.c.y - b.hh }, { x: b.c.x + b.hw, y: b.c.y + b.hh }); };
@@ -35,7 +63,9 @@ export function stepView(step: TourStep, scene: Scene, phone: boolean): View {
     const r = routed.get(e.id)!;
     pts.push(...r.pts);
     boxAt(e.from); boxAt(e.to);
-    focus = r.mid;
+    // a long arrow that does not fit: show its enzyme label, or for a bare summary arrow, where it arrives
+    focus = e.enz && !e.noPill ? r.mid : nodeMap[step.back ? e.from : e.to];
+    for (const id of step.also ?? []) { const a = scene.edges.find((x) => x.id === id); if (a) { boxAt(a.from); boxAt(a.to); } }
   } else {
     boxAt(step.node!);
     focus = nodeMap[step.node!];
@@ -49,9 +79,9 @@ export function stepView(step: TourStep, scene: Scene, phone: boolean): View {
     w = phone ? 600 : 1300; h = phone ? 520 : 640;
     x = focus.x - w / 2; y = focus.y - h / 2;
   }
-  // keep the bottom of the screen for the study card
-  const reserve = phone ? 0.42 : 0.3;
-  return { x, y, w, h: h / (1 - reserve) };
+  // grow the view so the step lands in the free part of the screen
+  const W = w / (1 - res.l - res.r), H = h / (1 - res.t - res.b);
+  return { x: x - res.l * W, y: y - res.t * H, w: W, h: H };
 }
 
 /** How long autoplay stays on a step: enough to read it. */
@@ -62,6 +92,11 @@ interface BarProps {
   tour: Tour;
   step: number;
   done: boolean;
+  /** The details drawer is open: on a wide screen the card moves aside so it stays usable. */
+  beside: boolean;
+  slideHidden: boolean;
+  onShowSlide: () => void;
+  onSelect: (s: Selection) => void;
   onStep: (i: number) => void;
   onFinish: () => void;
   onReplay: () => void;
@@ -71,7 +106,7 @@ interface BarProps {
 }
 
 /** The narration card: one step at a time, with Back / Next, autoplay and the chapter's progress. */
-export function StudyBar({ scene, tour, step, done, onStep, onFinish, onReplay, onNext, onQuiz, onExit }: BarProps) {
+export function StudyBar({ scene, tour, step, done, beside, slideHidden, onShowSlide, onSelect, onStep, onFinish, onReplay, onNext, onQuiz, onExit }: BarProps) {
   const [playing, setPlaying] = useState(false);
   const s = tour.steps[step];
   const last = step === tour.steps.length - 1;
@@ -89,23 +124,31 @@ export function StudyBar({ scene, tour, step, done, onStep, onFinish, onReplay, 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t?.closest('input, textarea, select, [contenteditable="true"], .modal, .drawer') || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (t?.closest('input, textarea, select, [contenteditable="true"], .modal, .drawer, .panel') || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); if (!done) nextRef.current(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); setPlaying(false); if (done) onStep(tour.steps.length - 1); else if (step > 0) onStep(step - 1); }
-      else if (e.key === 'Escape') onExit();
+      // Escape closes the drawer or a panel first; only with nothing else open does it leave study mode
+      else if (e.key === 'Escape' && !document.querySelector('.drawer, .panel, .modal-back:not(.hidden), .palette-back')) onExit();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [step, done, tour, onStep, onExit]);
 
-  // the chip names the enzyme on the step's arrow; summary arrows have none
+  // the chips open the details drawer, as a click on the map does
+  const { nodeMap } = geometryOf(scene);
   const edge = s.edge ? scene.edges.find((e) => e.id === s.edge) : undefined;
-  const enz = edge?.enz ? enzById[edge.enz].name : null;
+  const mols = edge ? (s.back ? [edge.to, edge.from] : [edge.from, edge.to]) : s.node ? [s.node] : [];
+  const enz = edge?.enz ? enzById[edge.enz] : null;
+  const molChip = (id: string) => (
+    <button key={id} className="sb-chip mol" onClick={() => onSelect({ kind: 'node', id })} title="Details">
+      <Rich s={labelOf(nodeMap[id])} />
+    </button>
+  );
   return (
-    <div className="study-bar" role="region" aria-label="Study mode" aria-live="polite">
+    <div className={`study-bar${beside ? ' beside' : ''}`} role="region" aria-label="Study mode" aria-live="polite">
       {playing && !done && <div key={step} className="sb-timer" style={{ animationDuration: `${dwell(s)}ms` }} />}
       <div className="sb-head">
-        <span className="sb-chapter"><b>Part {tour.part}</b> · {tour.title} · slides {tour.slides}</span>
+        <span className="sb-chapter"><b>Part {tour.part}</b> · {tour.title}</span>
         <button className="icon-btn" onClick={onExit} aria-label="Leave study mode" title="Leave study mode (Esc)"><CloseIcon /></button>
       </div>
       {done ? (
@@ -118,8 +161,15 @@ export function StudyBar({ scene, tour, step, done, onStep, onFinish, onReplay, 
           <div className="sb-title"><span className="sb-num">{step + 1}</span><span><Rich s={s.title} /></span></div>
           <p className="sb-say"><Rich s={s.say} /></p>
           <div className="sb-meta">
-            {enz && <span className="sb-chip enz"><Rich s={enz} /></span>}
-            <span className="sb-chip">{s.slide.replace(/^Part [IV]+ · /, '')}</span>
+            {mols.length === 2 ? <>{molChip(mols[0])}<span className="sb-arrow" aria-hidden="true">→</span>{molChip(mols[1])}</> : mols.map(molChip)}
+            {enz && (
+              <button className="sb-chip enz" onClick={() => onSelect({ kind: 'enz', id: enz.id })} title="Details">
+                <Rich s={enz.full ?? enz.name} />
+              </button>
+            )}
+            <button className="sb-chip" onClick={onShowSlide} title={slideHidden ? 'Show the slide' : 'Show this step’s slide'}>
+              {s.slide.replace(/^Part [IV]+ · /, '')}
+            </button>
           </div>
         </div>
       )}
@@ -157,23 +207,31 @@ export function StudyPanel({ done, onStart, onClose }: PanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   usePanelDismiss(onClose, ref);
   const parts = (['I', 'II', 'III', 'IV'] as Part[]).filter((p) => tours.some((t) => t.part === p));
+  const resume = tours.find((t) => !done.has(t.id));
   return (
     <div className="panel study-panel" ref={ref} role="dialog" aria-label="Study mode">
       <div className="panel-head"><h2>Study</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><CloseIcon /></button></div>
       <div className="panel-body">
-        {parts.map((p) => (
-          <section key={p}>
-            <h3>Part {p} · {PART_TITLE[p]}</h3>
-            {tours.filter((t) => t.part === p).map((t) => (
-              <button key={t.id} className="st-chapter" onClick={() => onStart(t.id)}>
-                <span className="st-t"><Rich s={t.title} /></span>
-                <span className="st-s">Slides {t.slides} · <Rich s={t.sub} /></span>
-                <span className="st-n">{done.has(t.id) && <span className="tick" aria-label="completed"><CheckIcon /></span>}{t.steps.length} steps</span>
-              </button>
-            ))}
-          </section>
-        ))}
-        <p className="st-note">Each chapter walks one pathway a step at a time, in slide order. Use ← → to move, or ▶ to play.</p>
+        <p className="st-note first">Walk each pathway one step at a time, in slide order, with the slide beside the map. Use ← → to move, or ▶ to play.</p>
+        {resume && done.size > 0 && (
+          <button className="sb-btn primary st-resume" onClick={() => onStart(resume.id)}><span>Continue: <Rich s={resume.title} /></span></button>
+        )}
+        {parts.map((p) => {
+          const list = tours.filter((t) => t.part === p);
+          const n = list.filter((t) => done.has(t.id)).length;
+          return (
+            <section key={p}>
+              <h3>Part {p} · {PART_TITLE[p]} <span className="st-count">{n}/{list.length}</span></h3>
+              {list.map((t) => (
+                <button key={t.id} className="st-chapter" onClick={() => onStart(t.id)}>
+                  <span className="st-t"><Rich s={t.title} /></span>
+                  <span className="st-s">{/[–,]/.test(t.slides) ? 'Slides' : 'Slide'} {t.slides} · <Rich s={t.sub} /></span>
+                  <span className="st-n">{done.has(t.id) && <span className="tick" aria-label="completed"><CheckIcon /></span>}{t.steps.length} steps</span>
+                </button>
+              ))}
+            </section>
+          );
+        })}
       </div>
     </div>
   );
