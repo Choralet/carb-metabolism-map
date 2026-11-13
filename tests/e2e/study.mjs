@@ -229,5 +229,15 @@ export default async function study({ browser, base, check: ok }) {
   const k = await q.locator('.slide-viewer img').evaluate((i) => new DOMMatrix(getComputedStyle(i).transform).a);
   ok(k > 2, `pinching zooms the slide on a phone (×${k.toFixed(1)})`);
   ok(await q.locator('.slide-viewer [aria-label="Zoom in"]').isVisible(), 'phones get zoom buttons too');
+  // every step is shown at reading size: the map's labels (enzyme names, cofactors) stay drawn
+  await q.goto(`${base}#study/${box.id}/${box.steps[0].id}`, { waitUntil: 'networkidle' });
+  await q.waitForSelector('.study-bar');
+  const lods = [];
+  for (let i = 0; i < box.steps.length; i++) {
+    if (i) await q.locator('.sb-btn.primary').tap();
+    await q.waitForTimeout(900);
+    lods.push(await q.locator('svg[data-lod]').getAttribute('data-lod'));
+  }
+  ok(lods.every((l) => l === 'near'), `a phone shows each study step at reading size (${lods.join(', ')})`);
   await ph.close();
 }

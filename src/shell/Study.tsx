@@ -36,7 +36,11 @@ export function plateOfTour(t: Tour, scene: Scene): { id: string; own: boolean }
 }
 
 /** Parts of the screen covered by the study card and the slide window, as fractions of the map's width and height. */
-export interface Reserve { l: number; r: number; t: number; b: number }
+export interface Reserve {
+  l: number; r: number; t: number; b: number;
+  /** The map's height over its width, and its width in px (a phone frames each step at a fixed scale). */
+  asp?: number; px?: number;
+}
 
 /**
  * What the study card and slide window cover right now, measured from the page. The slide window is avoided on
@@ -46,6 +50,8 @@ export function measureReserve(phone: boolean): Reserve {
   const main = document.querySelector('main')?.getBoundingClientRect();
   const res: Reserve = { l: 0, r: 0, t: 0, b: phone ? 0.42 : 0.3 };
   if (!main) return res;
+  res.asp = main.height / main.width;
+  res.px = main.width;
   const bar = document.querySelector('.study-bar')?.getBoundingClientRect();
   if (bar) res.b = Math.min(0.6, (main.bottom - bar.top + 8) / main.height);
   const sv = document.querySelector('.slide-viewer')?.getBoundingClientRect();
@@ -54,7 +60,7 @@ export function measureReserve(phone: boolean): Reserve {
       l: (sv.right - main.left + 8) / main.width, r: (main.right - sv.left + 8) / main.width,
       t: (sv.bottom - main.top + 8) / main.height, b: (main.bottom - sv.top + 8) / main.height,
     };
-    const side = (Object.keys(opts) as (keyof Reserve)[]).sort((a, b) => opts[a] - opts[b])[0];
+    const side = (Object.keys(opts) as ('l' | 'r' | 't' | 'b')[]).sort((a, b) => opts[a] - opts[b])[0];
     res[side] = Math.max(res[side], Math.min(0.5, opts[side]));
   }
   if (res.t + res.b > 0.8) res.t = 0.8 - res.b;
@@ -63,8 +69,7 @@ export function measureReserve(phone: boolean): Reserve {
 
 /**
  * Where the camera goes for a step: the arrow with both its molecules, at reading size, placed in the part of the
- * screen the study card and slide window leave free. Phones are capped at ~620 map units across, the widest view at
- * which the reaction labels (cofactors) are still drawn on a 390 px screen.
+ * screen the study card and slide window leave free. A phone shows it at a fixed reading scale (see below).
  */
 export function stepView(step: TourStep, scene: Scene, phone: boolean, res: Reserve): View {
   const { nodeMap, routed } = geometryOf(scene);
@@ -92,10 +97,30 @@ export function stepView(step: TourStep, scene: Scene, phone: boolean, res: Rese
     w = phone ? 600 : 1300; h = phone ? 520 : 640;
     x = focus.x - w / 2; y = focus.y - h / 2;
   }
+  if (phone) {
+    // A phone keeps reading size whatever the card and slide window cover: growing the view to leave room for them
+    // (as on a desktop) makes a tall view, and on a tall screen a tall view is also a wide one, zoomed out past
+    // the point where labels are drawn. So the width is fixed (~0.65 px per map unit on a 390 px screen) and the
+    // step is placed in the free band between the slide window and the card; when the slide window leaves too
+    // little of it, the band runs from the top bar instead and the window may cover a corner of the map.
+    const cap = (res.px ?? 390) / PHONE_SCALE;
+    const W = Math.min(Math.max(w, cap * 0.8), cap), H = W * (res.asp ?? 1.85);
+    const bot = 1 - res.b, top = bot - res.t < 0.3 ? 0 : res.t;
+    const band = (bot - top) * H;
+    const cx = w > W ? focus.x : x + w / 2;
+    const cy = h > band ? focus.y : y + h / 2;
+    return { x: cx - W / 2, y: cy - ((top + bot) / 2) * H, w: W, h: H };
+  }
   // grow the view so the step lands in the free part of the screen
   const W = w / (1 - res.l - res.r), H = h / (1 - res.t - res.b);
   return { x: x - res.l * W, y: y - res.t * H, w: W, h: H };
 }
+
+/**
+ * A phone's study view in px per map unit, at least: comfortably above 0.6, below which the map stops drawing
+ * reaction labels (Diagram's LOD_MID). About 570 map units across a 390 px screen, 530 across 360 px.
+ */
+const PHONE_SCALE = 0.68;
 
 /** How long autoplay stays on a step: enough to read it. */
 const dwell = (s: TourStep) => 3200 + s.say.length * 38;
