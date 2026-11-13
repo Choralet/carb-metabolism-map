@@ -27,7 +27,8 @@ export default async function study({ browser, base, check: ok }) {
   await p.waitForTimeout(800);
   ok(!(await p.locator('.study-panel').count()), 'starting a chapter closes the list');
   ok((await title()).includes(first.steps[0].title), `step 1 is "${first.steps[0].title}"`);
-  ok((await p.locator(`g.eline.now[data-edge="${first.steps[0].edge}"]`).count()) === 1, 'its arrow is the one animated');
+  ok(first.steps[0].edge ? (await p.locator(`g.eline.now[data-edge="${first.steps[0].edge}"]`).count()) === 1
+    : (await p.locator('g.eline.now').count()) === 0, 'step 1 animates its own arrow, or none for a molecule step');
   ok((await p.locator('.sb-dot').count()) === first.steps.length, `${first.steps.length} progress dots`);
   ok((await slideSrc())?.endsWith(`/${slideNo(first.steps[0].slide)}.webp`), `the slide window shows slide ${slideNo(first.steps[0].slide)}`);
   ok(await p.locator('.slide-viewer img').evaluate((i) => i.complete && i.naturalWidth > 0), 'the slide image loads');
@@ -100,6 +101,75 @@ export default async function study({ browser, base, check: ok }) {
   await p.click('button.study-btn');
   ok((await p.locator('.st-chapter').first().locator('.tick').count()) === 1, 'the list ticks the finished chapter');
 
+  // history: entering pushes one entry, a drawer stacks on top, Back closes it and then leaves study mode
+  const box = tours.find((t) => t.id === 't_l_box');
+  await p.goto(base, { waitUntil: 'networkidle' });
+  await p.waitForSelector('svg[data-lod]');
+  await p.click('button.study-btn');
+  await p.locator('.st-chapter', { hasText: box.title }).click();
+  await p.waitForTimeout(400);
+  await p.keyboard.press('ArrowRight');
+  await p.waitForTimeout(300);
+  ok(new URL(p.url()).hash === `#study/${box.id}/${box.steps[1].id}`, `the URL names the chapter and step (${new URL(p.url()).hash})`);
+  await p.locator('.sb-chip.enz').click();
+  await p.waitForTimeout(300);
+  await p.goBack(); await p.waitForTimeout(400);
+  ok(!(await p.locator('.drawer').count()) && (await title()).includes(box.steps[1].title), 'Back closes a drawer opened from study mode and stays on the step');
+  ok(new URL(p.url()).hash === `#study/${box.id}/${box.steps[1].id}`, 'the URL is back on the step');
+  await p.goBack(); await p.waitForTimeout(400);
+  ok(!(await p.locator('.study-bar').count()) && !new URL(p.url()).hash, 'Back again leaves study mode');
+
+  // resume: the list offers the step the reader left at
+  await p.click('button.study-btn');
+  ok(/Continue: .* · step 2/.test(await p.locator('.st-resume').innerText()), 'the list offers "Continue" at the step left off');
+  await p.click('.st-resume');
+  await p.waitForTimeout(300);
+  ok((await title()).includes(box.steps[1].title), '"Continue" reopens that step');
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(300);
+
+  // a #study link opens its chapter at its step
+  const p2 = await ctx.newPage();
+  await p2.goto(`${base}#study/${box.id}/${box.steps[3].id}`, { waitUntil: 'networkidle' });
+  await p2.waitForSelector('.study-bar');
+  ok((await p2.locator('.sb-title').innerText()).includes(box.steps[3].title), `a #study link opens its step ("${box.steps[3].title}")`);
+  ok(/β-Oxidation: one round · Study/.test(await p2.title()), 'the page title names the chapter');
+  await p2.close();
+
+  // outside study mode: a citation opens its slide, and the drawer and Plates panel lead into study mode
+  await p.goto(`${base}#enz/l_acd`, { waitUntil: 'networkidle' });
+  await p.waitForSelector('.drawer');
+  await p.locator('.drawer .cite-slide').first().click();
+  await p.waitForTimeout(300);
+  ok((await slideSrc())?.endsWith('/13.webp'), 'a slide number in the details opens that slide');
+  await p.locator('.drawer .study-link').click();
+  await p.waitForTimeout(500);
+  ok((await title()).includes(box.steps[0].title), '"Study this step" opens study mode at the enzyme’s step');
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(300);
+  await p.click('button[title="Plates (table of contents)"]');
+  await p.locator('.toc-study button', { hasText: 'Building palmitate' }).click();
+  await p.waitForTimeout(500);
+  ok(/Building palmitate/.test(await p.locator('.sb-chapter').innerText()), 'the Plates panel starts a plate’s chapter');
+
   ok(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await ctx.close();
+
+  // a phone: two fingers pinch-zoom the slide
+  const ph = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const q = await ph.newPage();
+  await q.goto(`${base}#study/${first.id}/${first.steps[0].id}`, { waitUntil: 'networkidle' });
+  await q.waitForSelector('.sv-body');
+  const b = await q.locator('.sv-body').boundingBox();
+  const cdp = await ph.newCDPSession(q);
+  const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+  const pts = (d) => [{ x: cx - d, y: cy, id: 1 }, { x: cx + d, y: cy, id: 2 }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts(10) });
+  for (const d of [20, 35, 50, 65]) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(d) });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await q.waitForTimeout(150);
+  const k = await q.locator('.slide-viewer img').evaluate((i) => new DOMMatrix(getComputedStyle(i).transform).a);
+  ok(k > 2, `pinching zooms the slide on a phone (×${k.toFixed(1)})`);
+  ok(await q.locator('.slide-viewer [aria-label="Zoom in"]').isVisible(), 'phones get zoom buttons too');
+  await ph.close();
 }

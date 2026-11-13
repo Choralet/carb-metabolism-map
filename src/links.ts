@@ -3,14 +3,17 @@ import { MOVED_NODES } from './data/moved';
 
 /**
  * Deep links live in the URL hash, so they work on static hosting and survive the offline cache:
- *   #enz/cs · #mol/lb_facoa · #card/l_c_yield · #reg/r_l_acc · #plate/23
+ *   #enz/cs · #mol/lb_facoa · #card/l_c_yield · #reg/r_l_acc · #plate/23 · #study/t_l_box/s3 (a study chapter at a step)
  * with an optional camera view appended: #enz/cs@1650,2400,900 (centre x, centre y, width in map units). The
  * centre, not the corner, so the link frames the same spot on a screen of any shape.
  */
 const WORD = { enz: 'enz', node: 'mol', card: 'card', reg: 'reg' } as const;
 const KIND: Record<string, NonNullable<Selection>['kind']> = { enz: 'enz', mol: 'node', card: 'card', reg: 'reg' };
 
-export interface Link { sel: Selection; plate?: number; view?: View }
+export interface Link { sel: Selection; plate?: number; view?: View; study?: { tour: string; step: string } }
+
+/** A study chapter at one of its steps (by step id, which is permanent), or at its "complete" screen. */
+export const studyHash = (tour: string, step: string) => `#study/${encodeURIComponent(tour)}/${encodeURIComponent(step)}`;
 
 export function toHash(sel: Selection, view?: View): string {
   const at = view ? `@${Math.round(view.x + view.w / 2)},${Math.round(view.y + view.h / 2)},${Math.round(view.w)}` : '';
@@ -24,6 +27,10 @@ export function parseHash(hash: string): Link | null {
   const w = +(m[5] ?? 0), h = 1;
   const view = m[3] ? { x: +m[3] - w / 2, y: +m[4] - h / 2, w, h } : undefined;
   if (m[1] === 'plate') return { sel: null, plate: +m[2], view };
+  if (m[1] === 'study' && m[2]) {
+    const [tour, step = ''] = m[2].split('/').map(decodeURIComponent);
+    return { sel: null, study: { tour, step } };
+  }
   if (m[1] && KIND[m[1]] && m[2]) {
     const kind = KIND[m[1]], id = decodeURIComponent(m[2]);
     // a molecule node removed when the plates were joined: open the one that replaced it

@@ -13,6 +13,24 @@ export function slideOf(cite: string): SlideRef | null {
   const part = m[1] as Deck, n = +m[2];
   return n >= DECKS[part].first && n <= DECKS[part].last ? { part, n } : null;
 }
+/**
+ * Every Part III/IV slide a citation names, in order, ranges spelled out: "Part II · slide 19 · Part IV · slide 15,
+ * 18" → IV 15, IV 18. Slides of the midterm decks, which the site does not ship, are left out.
+ */
+export function slidesOf(cite: string): SlideRef[] {
+  const out: SlideRef[] = [];
+  let part: string | null = null;
+  for (const seg of cite.split(/(Part (?:IV|III|II|I) · )/)) {
+    const pm = seg.match(/^Part (IV|III|II|I) · $/);
+    if (pm) { part = pm[1]; continue; }
+    if (part !== 'III' && part !== 'IV') continue;
+    const d = DECKS[part];
+    for (const m of seg.matchAll(/(\d+)(?:\s*[–-]\s*(\d+))?/g)) {
+      for (let n = +m[1]; n <= +(m[2] ?? m[1]); n++) if (n >= d.first && n <= d.last) out.push({ part, n });
+    }
+  }
+  return out;
+}
 const srcOf = (s: SlideRef) => `slides/${DECKS[s.part].dir}/${s.n}.webp`;
 
 const HEAD = 38, ASPECT = 9 / 16, MIN_W = 220;
@@ -34,6 +52,10 @@ interface Props {
   onClose: () => void;
   /** The window moved or changed size (the camera keeps the step clear of it). */
   onMoved?: () => void;
+  /** Show another slide for a moment (a citation clicked in the details); "Back to step" returns to `slide`. */
+  peek?: { slide: SlideRef; n: number } | null;
+  /** What "Back" returns to: the study step, or the slide a citation opened. */
+  backLabel?: string;
 }
 
 /**
@@ -41,12 +63,13 @@ interface Props {
  * and zoomed (wheel, pinch, double-click or the buttons) and panned inside. It follows the study step's slide;
  * ◀ ▶ browse the deck, and "Back to step" returns.
  */
-export default function SlideViewer({ slide, phone, onClose, onMoved }: Props) {
+export default function SlideViewer({ slide, phone, onClose, onMoved, peek, backLabel = 'Back to step' }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const img = useRef<HTMLImageElement>(null);
   const [cur, setCur] = useState<SlideRef>(slide);
   useEffect(() => setCur(slide), [slide.part, slide.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (peek) setCur(peek.slide); }, [peek?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   const away = cur.part !== slide.part || cur.n !== slide.n;
 
   // ── window: position and size ─────────────────────────────────────
@@ -176,15 +199,13 @@ export default function SlideViewer({ slide, phone, onClose, onMoved }: Props) {
         <span className="sv-grip" aria-hidden="true">⠿</span>
         <span className="sv-title">{phone ? <>Slide {cur.n}</> : <><b>Part {cur.part}</b> · slide {cur.n}</>}</span>
         <span className="sv-tools">
-          {away && <button className="sv-back" onClick={() => setCur(slide)} title="Back to this step's slide">Back to step</button>}
+          {away && (phone
+            ? <button className="sv-btn" onClick={() => setCur(slide)} title={backLabel} aria-label={backLabel}>↩</button>
+            : <button className="sv-back" onClick={() => setCur(slide)} title={backLabel}>{backLabel}</button>)}
           <button className="sv-btn" onClick={() => setCur({ part: cur.part, n: cur.n - 1 })} disabled={cur.n <= deck.first} aria-label="Previous slide">‹</button>
           <button className="sv-btn" onClick={() => setCur({ part: cur.part, n: cur.n + 1 })} disabled={cur.n >= deck.last} aria-label="Next slide">›</button>
-          {!phone && (
-            <>
-              <button className="sv-btn" onClick={() => zoomAt(1 / 1.5, ...centre())} disabled={!zoomed} aria-label="Zoom out">−</button>
-              <button className="sv-btn" onClick={() => zoomAt(1.5, ...centre())} aria-label="Zoom in">+</button>
-            </>
-          )}
+          <button className="sv-btn" onClick={() => zoomAt(1 / 1.5, ...centre())} disabled={!zoomed} aria-label="Zoom out">−</button>
+          <button className="sv-btn" onClick={() => zoomAt(1.5, ...centre())} aria-label="Zoom in">+</button>
           <button className="sv-btn" onClick={onClose} aria-label="Hide the slide"><CloseIcon /></button>
         </span>
       </div>

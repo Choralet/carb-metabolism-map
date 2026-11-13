@@ -7,7 +7,8 @@ import type { Selection, View } from '../Diagram';
 import { bestPlace, placesOf, regionView, viewAround } from '../locate';
 import { InfoGlyph, markPath, MarkIcon, RegIcon } from '../map/glyphs';
 import { Rich } from '../rich';
-import { CloseIcon } from './icons';
+import { CloseIcon, StudyIcon } from './icons';
+import { tours } from '../data/tours';
 
 export const PART_TITLE: Record<Part, string> = {
   I: 'Glycolysis, gluconeogenesis, PPP & glycogen',
@@ -31,14 +32,33 @@ export function usePanelDismiss(onClose: () => void, ref: React.RefObject<HTMLEl
   }, [onClose, ref]);
 }
 
-interface PlatesProps { scene: Scene; scope: Scope; onGo: (v: View) => void; onPick: (s: Selection, v: View) => void; onClose: () => void }
+interface PlatesProps {
+  scene: Scene; scope: Scope; onGo: (v: View) => void; onPick: (s: Selection, v: View) => void;
+  /** Start the study chapter that walks a plate. */
+  onStudy: (tourId: string) => void;
+  onClose: () => void;
+}
 
-export function PlatesPanel({ scene, scope, onGo, onPick, onClose }: PlatesProps) {
+/** The plate each study chapter walks: the one most of its arrows belong to. */
+function chapterPlates(scene: Scene): Map<string, string[]> {
+  const byPlate = new Map<string, string[]>();
+  const edgePlate = new Map(scene.edges.map((e) => [e.id, e.plate]));
+  for (const t of tours) {
+    const count = new Map<string, number>();
+    t.steps.forEach((st) => { const p = st.edge && edgePlate.get(st.edge); if (p) count.set(p, (count.get(p) ?? 0) + 1); });
+    const top = [...count].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (top) byPlate.set(top, [...(byPlate.get(top) ?? []), t.id]);
+  }
+  return byPlate;
+}
+
+export function PlatesPanel({ scene, scope, onGo, onPick, onStudy, onClose }: PlatesProps) {
   const ref = useRef<HTMLDivElement>(null);
   usePanelDismiss(onClose, ref);
   const parts = (['I', 'II', 'III', 'IV'] as Part[]).filter((p) => scene.regions.some((r) => r.part === p));
   const byPart = (p: Part) => scene.regions.filter((r) => r.part === p).sort((a, b) => a.plate - b.plate);
   const views = (r: Region) => scene.jumps.filter((j) => j.plate === r.id);
+  const studies = chapterPlates(scene);
   // study tables, each listed once (a table can be pinned on more than one plate), in plate order
   const tables = [...new Set(scene.nodes.filter((n) => n.card && cardById[n.card]?.table).map((n) => n.card!))]
     .map((id) => ({ id, card: cardById[id], place: bestPlace(placesOf({ kind: 'card', id }, scene), scope) }))
@@ -60,6 +80,14 @@ export function PlatesPanel({ scene, scope, onGo, onPick, onClose }: PlatesProps
                       <span className="toc-no">{r.plate}</span>
                       <span className="toc-t"><Rich s={r.title} />{r.sub && <em> — <Rich s={r.sub} /></em>}</span>
                     </button>
+                    {(studies.get(r.id) ?? []).length > 0 && (
+                      <div className="toc-views toc-study">
+                        {studies.get(r.id)!.map((id) => {
+                          const t = tours.find((x) => x.id === id)!;
+                          return <button key={id} onClick={() => onStudy(id)} title="Walk through it in study mode"><StudyIcon /> <span>Study: <Rich s={t.title} /></span></button>;
+                        })}
+                      </div>
+                    )}
                     {views(r).length > 0 && (
                       <div className="toc-views">
                         {views(r).map((j) => <button key={j.id} onClick={() => onGo(j)}>{j.label}</button>)}

@@ -33,8 +33,10 @@ const N = 'Part IV · slide ';
 export const tours: Tour[] = [
   // ───────────────────────────── Part III · lipid metabolism ─────────────────────────────
   {
-    id: 't_l_diet', part: 'III', title: 'Dietary fat, from meal to muscle', sub: 'Processing of dietary lipids', slides: '5–7',
+    id: 't_l_diet', part: 'III', title: 'Dietary fat, from meal to muscle', sub: 'Processing of dietary lipids', slides: '4–7',
     steps: [
+      { id: 's0', node: 'l_c_fuel', title: 'Where fatty acids come from', slide: S + '4',
+        say: 'Cells get fatty acids three ways: from fat in the diet, from fat stored in lipid droplets, and from fat made in one organ for another (the liver turns extra carbohydrate into fat for export).' },
       { id: 's1', edge: 'e_ld1', title: 'Bile salts emulsify the fat', slide: S + '5',
         say: 'Fat from food arrives as big, insoluble droplets. Bile salts (made from cholesterol in the liver, stored in the gallbladder) break them into tiny mixed micelles.' },
       { id: 's2', edge: 'e_ld2', title: 'Intestinal lipases cut them up', slide: S + '5',
@@ -145,11 +147,15 @@ export const tours: Tour[] = [
         say: 'There they are turned back into acetyl-CoA and burned in the citric acid cycle for energy.' },
       { id: 's4', node: 'l_c_ketosis', title: 'Too many: ketosis', slide: S + '21',
         say: 'In starvation and untreated diabetes the cycle’s intermediates are used up by gluconeogenesis, so acetyl-CoA piles up and becomes ketone bodies. Too many lower blood pH (acidosis).' },
+      { id: 's5', node: 'l_c_ketosis', title: 'How high: ketosis', slide: S + '22',
+        say: 'Untreated diabetics can reach 90 mg ketone bodies per 100 mL of blood (normal: under 3) and lose 5,000 mg a day in urine. Very low-calorie diets raise them too, so they must be watched.' },
     ],
   },
   {
-    id: 't_l_cit', part: 'III', title: 'Getting acetyl-CoA out: the citrate shuttle', sub: 'From the matrix to the cytosol', slides: '25–26',
+    id: 't_l_cit', part: 'III', title: 'Getting acetyl-CoA out: the citrate shuttle', sub: 'From the matrix to the cytosol', slides: '24–26',
     steps: [
+      { id: 's0', node: 'l_c_export', title: 'Made inside, needed outside', slide: S + '24',
+        say: 'Most acetyl-CoA is made in the mitochondria, from pyruvate and amino acids. But fatty acids are built in the cytosol (in plants, the chloroplasts), so the acetyl-CoA has to get out.' },
       { id: 's1', edge: 'e_cs', title: 'Make citrate', slide: S + '25',
         say: 'Acetyl-CoA cannot cross the inner membrane. So in the matrix, citrate synthase joins it to oxaloacetate, making citrate.' },
       { id: 's2', edge: 'e_ls2', title: 'Citrate crosses', slide: S + '25',
@@ -171,8 +177,10 @@ export const tours: Tour[] = [
     ],
   },
   {
-    id: 't_l_fas', part: 'III', title: 'Building palmitate', sub: 'Acetyl-CoA carboxylase and fatty acid synthase', slides: '28–32',
+    id: 't_l_fas', part: 'III', title: 'Building palmitate', sub: 'Acetyl-CoA carboxylase and fatty acid synthase', slides: '27–32',
     steps: [
+      { id: 's0', node: 'l_c_fas', title: 'Not β-oxidation in reverse', slide: S + '27',
+        say: 'Making fatty acids is not β-oxidation run backwards. It uses different enzymes, in a different place (the cytosol), and builds the chain from malonyl-CoA.' },
       { id: 's1', edge: 'e_lf1', title: 'Make malonyl-CoA', slide: S + '28',
         say: 'Acetyl-CoA carboxylase adds a carboxyl group from bicarbonate to acetyl-CoA, using ATP and biotin. Malonyl-CoA is the building block, and this step cannot be reversed.' },
       { id: 's2', edge: 'e_lf2', title: 'Load malonyl onto ACP', slide: S + '29',
@@ -234,8 +242,10 @@ export const tours: Tour[] = [
     ],
   },
   {
-    id: 't_l_tag', part: 'III', title: 'Making fats and membrane lipids', sub: 'Triacylglycerols and glycerophospholipids', slides: '40–43',
+    id: 't_l_tag', part: 'III', title: 'Making fats and membrane lipids', sub: 'Triacylglycerols and glycerophospholipids', slides: '40–44',
     steps: [
+      { id: 's0', node: 'l_c_tag', title: 'Two fates for a fatty acid', slide: S + '40',
+        say: 'Fatty acids are either stored in triacylglycerols, for energy, or built into membrane phospholipids. Growing cells need membranes; well-fed cells that are not growing store fat.' },
       { id: 's1', edge: 'e_lt1', title: 'A backbone from DHAP', slide: S + '41',
         say: 'In liver and kidney, glycerol 3-phosphate dehydrogenase reduces DHAP to glycerol 3-phosphate with NADH. The DHAP can come from pyruvate by a short version of gluconeogenesis.' },
       { id: 's2', edge: 'e_lt2', title: 'A little from glycerol', slide: S + '42',
@@ -249,9 +259,11 @@ export const tours: Tour[] = [
       { id: 's6', edge: 'e_lt6', title: 'Third fatty acid: a fat', slide: S + '43',
         say: 'An acyl transferase adds a third fatty acid, making triacylglycerol, the storage fat.' },
       { id: 's7', edge: 'e_lt7', title: 'Or a membrane lipid', slide: S + '43',
-        say: 'Phosphatidic acid can instead get a head group (serine, choline, ethanolamine…), becoming a glycerophospholipid for membranes. Growing cells need these; well-fed, non-growing ones store fat.' },
+        say: 'Phosphatidic acid can instead get a head group (serine, choline, ethanolamine…), becoming a glycerophospholipid for membranes.' },
       { id: 's8', edge: 'e_lt9', also: ['e_lt8'], title: 'Desaturating a phospholipid', slide: S + '43',
         say: 'Desaturases can add double bonds to fatty acids already in a phospholipid: phosphatidylcholine with oleate becomes phosphatidylcholine with linoleate.' },
+      { id: 's9', node: 'l_c_insulin', title: 'Insulin says: make fat', slide: S + '44',
+        say: 'Insulin stimulates turning dietary carbohydrate and protein into fat. In diabetes (no insulin, or no response to it) fatty acid synthesis drops, and that acetyl-CoA becomes ketone bodies instead.' },
     ],
   },
   {
@@ -301,8 +313,14 @@ export const tours: Tour[] = [
     ],
   },
   {
-    id: 't_n_ta', part: 'IV', title: 'Removing the amino group', sub: 'Transamination, then deamination', slides: '9–11',
+    id: 't_n_ta', part: 'IV', title: 'Removing the amino group', sub: 'Transamination, then deamination', slides: '7–11',
     steps: [
+      { id: 's0a', node: 'n_c_circum', title: 'When amino acids are burned', slide: N + '7',
+        say: 'Amino acids are broken down in three situations: normal protein turnover, a protein-rich diet (amino acids cannot be stored), and starvation or uncontrolled diabetes, when proteins become fuel.' },
+      { id: 's0b', node: 'n_c_overview', title: 'Amino group vs carbon skeleton', slide: N + '8',
+        say: 'The key step for every amino acid is separating its α-amino group from its carbon skeleton. The amino group goes to nitrogen disposal; the skeleton becomes fuel.' },
+      { id: 's0c', node: 'n_c_collect', title: 'Glutamate and glutamine collect nitrogen', slide: N + '9',
+        say: 'Glutamate and glutamine are the collection points for amino groups. Liver cytosol moves them onto α-ketoglutarate, other tissues send glutamine, and muscle sends alanine.' },
       { id: 's1', edge: 'e_nt1', title: 'Transamination', slide: N + '10',
         say: 'An aminotransferase moves the amino group from an amino acid to α-ketoglutarate, making glutamate and leaving the α-keto acid (the carbon skeleton). PLP is the cofactor; the step is reversible.' },
       { id: 's2', edge: 'e_nt3', title: 'Glutamate into the mitochondria', slide: N + '11',
@@ -312,12 +330,14 @@ export const tours: Tour[] = [
     ],
   },
   {
-    id: 't_n_nh3', part: 'IV', title: 'Carrying ammonia to the liver', sub: 'Glutamine and the glucose-alanine cycle', slides: '12–13',
+    id: 't_n_nh3', part: 'IV', title: 'Carrying ammonia to the liver', sub: 'Glutamine and the glucose-alanine cycle', slides: '12–13, 20',
     steps: [
       { id: 's1', edge: 'e_ng1', title: 'Glutamine synthetase, part 1', slide: N + '12',
         say: 'Free ammonia is toxic. In most tissues, glutamine synthetase first adds a phosphate from ATP to glutamate (γ-glutamyl phosphate)…' },
       { id: 's2', edge: 'e_ng2', title: 'Glutamine synthetase, part 2', slide: N + '12',
         say: '…then swaps the phosphate for NH₄⁺, making glutamine: a safe way to carry ammonia.' },
+      { id: 's2r', edge: 'e_ng1', also: ['e_ng2'], title: 'A tightly regulated enzyme', slide: N + '20',
+        say: 'As the entry point for reduced nitrogen, glutamine synthetase is regulated in almost all organisms. Alanine, glycine and six end products of glutamine inhibit it; together they nearly shut it off.' },
       { id: 's3', edge: 'e_ng3', title: 'Through the blood', slide: N + '12',
         say: 'Glutamine travels in the blood, where it is far more plentiful than any other amino acid, to the liver.' },
       { id: 's4', edge: 'e_ng4', title: 'Glutaminase releases NH₄⁺', slide: N + '12',
@@ -339,6 +359,8 @@ export const tours: Tour[] = [
   {
     id: 't_n_urea', part: 'IV', title: 'The urea cycle', sub: 'Liver mitochondria and cytosol', slides: '14–18',
     steps: [
+      { id: 's0', node: 'n_c_urea', title: 'The plan', slide: N + '14',
+        say: 'Urea is made almost only in the liver, starting inside its mitochondria and finishing in the cytosol. Nitrogen enters twice: as carbamoyl phosphate (step 1) and as aspartate (step 2b).' },
       { id: 's1', edge: 'e_nu1', title: 'NH₄⁺ from glutamine', slide: N + '15',
         say: 'Urea is made almost only in the liver. In its mitochondria, glutaminase releases NH₄⁺ from glutamine…' },
       { id: 's2', edge: 'e_nu2', title: 'NH₄⁺ from glutamate', slide: N + '15',
@@ -351,7 +373,7 @@ export const tours: Tour[] = [
         say: 'Citrulline leaves the mitochondrion. The next three steps happen in the cytosol.' },
       { id: 's6', edge: 'e_nu7', title: '2a · Activated by ATP', slide: N + '15',
         say: 'Argininosuccinate synthetase first activates citrulline with ATP, making citrullyl-AMP and releasing PPi.' },
-      { id: 's7', edge: 'e_nu3', title: 'Aspartate, the second nitrogen', slide: N + '15',
+      { id: 's7', edge: 'e_nu3', title: 'Aspartate, the second nitrogen', slide: N + '17',
         say: 'The second nitrogen comes as aspartate, made by transamination of oxaloacetate with glutamate in the mitochondria…' },
       { id: 's8', edge: 'e_nu12', title: 'Aspartate leaves', slide: N + '18',
         say: '…and carried out to the cytosol.' },
@@ -504,6 +526,10 @@ export const tours: Tour[] = [
   {
     id: 't_n_pur', part: 'IV', title: 'Building the purine ring', sub: 'From PRPP to IMP in eleven steps', slides: '30–32',
     steps: [
+      { id: 's0a', node: 'n_c_nucfun', title: 'Why nucleotides', slide: N + '30',
+        say: 'Nucleotides build DNA and RNA, carry energy (ATP, GTP), are parts of NAD, FAD and coenzyme A, and act as messengers (cAMP, cGMP). Cells make them from scratch (de novo) or recycle them (salvage).' },
+      { id: 's0b', node: 'n_c_purring', title: 'Where each ring atom comes from', slide: N + '30',
+        say: 'Tracer experiments in birds showed the sources: aspartate (N-1), formate (C-2, C-8), glutamine (N-3, N-9), glycine (C-4, C-5, N-7) and CO₂ (C-6).' },
       { id: 's1', edge: 'e_np0', title: 'Start from PRPP', slide: N + '31',
         say: 'Purines are built right on the sugar. PRPP, made from ribose 5-phosphate, is the base everything is attached to.' },
       { id: 's2', edge: 'e_np1', title: '1 · An amino group from glutamine', slide: N + '31',
@@ -647,3 +673,32 @@ export const tours: Tour[] = [
 ];
 
 export const tourById: Record<string, Tour> = Object.fromEntries(tours.map((t) => [t.id, t]));
+
+/** Where study mode covers an arrow: the first chapter and step that animate it (or light it with `also`). */
+export function stepForEdge(edgeId: string): { tour: string; step: number } | null {
+  for (const t of tours) {
+    const i = t.steps.findIndex((s) => s.edge === edgeId);
+    if (i >= 0) return { tour: t.id, step: i };
+  }
+  for (const t of tours) {
+    const i = t.steps.findIndex((s) => s.also?.includes(edgeId));
+    if (i >= 0) return { tour: t.id, step: i };
+  }
+  return null;
+}
+
+/** Where study mode shows a drawn node: a step about it, else the step whose arrow ends there (or starts there). */
+export function stepForNode(nodeId: string, edges: { id: string; from: string; to: string }[]): { tour: string; step: number } | null {
+  for (const t of tours) {
+    const i = t.steps.findIndex((s) => s.node === nodeId);
+    if (i >= 0) return { tour: t.id, step: i };
+  }
+  for (const end of ['to', 'from'] as const) {
+    const ids = new Set(edges.filter((e) => e[end] === nodeId).map((e) => e.id));
+    for (const t of tours) {
+      const i = t.steps.findIndex((s) => s.edge && ids.has(s.edge));
+      if (i >= 0) return { tour: t.id, step: i };
+    }
+  }
+  return null;
+}

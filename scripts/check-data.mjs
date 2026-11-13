@@ -161,6 +161,7 @@ for (const id of Object.keys(structures)) if (!mol.has(id)) warn(`structures.jso
   const finalish = (e) => (e.exam === 'final' || e.exam === 'both');
   const seen = new Set();
   const lastFirst = {};
+  const cited = {};
   for (const t of tours) {
     const at = `tour ${t.id}`;
     if (seen.has(t.id)) err(`${at}: duplicate chapter id`);
@@ -190,10 +191,15 @@ for (const id of Object.keys(structures)) if (!mol.has(id)) warn(`structures.jso
       if (!st.title.trim() || !st.say.trim()) err(`${sat}: needs a title and narration`);
       if (st.say.length > 280) warn(`${sat}: narration is ${st.say.length} characters; keep it to a sentence or two`);
     }
+    for (const st of t.steps) { const m = st.slide.match(/^Part (III|IV) · slides? (\d+)/); if (m) (cited[m[1]] ??= new Set()).add(+m[2]); }
     // chapters run in lecture order, by the first slide they use
     if (first < (lastFirst[t.part] ?? 0)) err(`${at}: out of lecture order (starts at slide ${first}, after a chapter that starts later)`);
     lastFirst[t.part] = first;
   }
+  // every content slide is walked somewhere (title, reference and section-divider slides are not)
+  const skip = { III: [1, 2, 3, 23], IV: [1, 2, 3, 21, 29] }, last = { III: 47, IV: 38 };
+  for (const part of ['III', 'IV']) for (let k = 1; k <= last[part]; k++)
+    if (!skip[part].includes(k) && !cited[part]?.has(k)) warn(`study mode never shows Part ${part} slide ${k}`);
 }
 
 for (const w of warnings) console.log(`  warn  ${w}`);

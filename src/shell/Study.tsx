@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { enzById } from '../data/enzymes';
-import { tours, type Tour, type TourStep } from '../data/tours';
+import { tourById, tours, type Tour, type TourStep } from '../data/tours';
 import type { Part, Scene } from '../data/types';
 import type { Selection, View } from '../Diagram';
 import { geometryOf, labelOf, nodeBox } from '../map/geometry';
 import { Rich } from '../rich';
 import { CheckIcon, CloseIcon } from './icons';
 import { PART_TITLE, usePanelDismiss } from './Panels';
+import { DECKS } from './SlideViewer';
 
 /** The arrows lit so far in a chapter (every step up to and including `upTo`) and the molecules they touch. */
 export function tourTrail(tour: Tour, upTo: number, scene: Scene): { edges: Set<string>; nodes: Set<string> } {
@@ -200,21 +201,69 @@ export function StudyBar({ scene, tour, step, done, beside, slideHidden, onShowS
   );
 }
 
-interface PanelProps { done: Set<string>; onStart: (id: string) => void; onClose: () => void }
+const SLIDE_URLS = Object.values(DECKS).flatMap((d) => Array.from({ length: d.last - d.first + 1 }, (_, i) => `slides/${d.dir}/${d.first + i}.webp`));
+
+/**
+ * Slides are cached the first time each is shown. This saves them all now (about 7 MB), for studying offline: an
+ * opt-in, because most visits would never need the download. The fetches go through the service worker, which
+ * keeps them in its 'slides' cache.
+ */
+function OfflineSlides() {
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'fail'>('idle');
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!('caches' in window)) return;
+    caches.open('slides').then((c) => c.keys()).then((k) => { if (k.length >= SLIDE_URLS.length) setState('done'); }).catch(() => {});
+  }, []);
+  const save = async () => {
+    setState('busy'); setN(0);
+    let ok = 0;
+    for (let i = 0; i < SLIDE_URLS.length; i += 6) {
+      const got = await Promise.all(SLIDE_URLS.slice(i, i + 6).map((u) => fetch(u).then((r) => r.ok).catch(() => false)));
+      ok += got.filter(Boolean).length;
+      setN(i + got.length);
+    }
+    setState(ok === SLIDE_URLS.length ? 'done' : 'fail');
+  };
+  return (
+    <div className="st-offline">
+      {state === 'done' ? <span className="ok">✓ All {SLIDE_URLS.length} slides are saved for offline use.</span> : (
+        <>
+          <span>{state === 'busy' ? `Saving slides… ${n}/${SLIDE_URLS.length}` : state === 'fail' ? 'Some slides could not be saved. Try again when online.' : `Slides are saved as you view them. Save all ${SLIDE_URLS.length} now to study offline (about 7 MB).`}</span>
+          <button className="sb-btn" onClick={save} disabled={state === 'busy'}>Save all</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface PanelProps {
+  done: Set<string>;
+  /** Where the reader left off in an unfinished chapter. */
+  resume: { tour: string; step: number } | null;
+  onStart: (id: string) => void;
+  onResume: (at: { tour: string; step: number }) => void;
+  onClose: () => void;
+}
 
 /** Chapter picker, in lecture order. */
-export function StudyPanel({ done, onStart, onClose }: PanelProps) {
+export function StudyPanel({ done, resume, onStart, onResume, onClose }: PanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   usePanelDismiss(onClose, ref);
   const parts = (['I', 'II', 'III', 'IV'] as Part[]).filter((p) => tours.some((t) => t.part === p));
-  const resume = tours.find((t) => !done.has(t.id));
+  const next = tours.find((t) => !done.has(t.id));
+  const at = resume && tourById[resume.tour];
   return (
     <div className="panel study-panel" ref={ref} role="dialog" aria-label="Study mode">
       <div className="panel-head"><h2>Study</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><CloseIcon /></button></div>
       <div className="panel-body">
         <p className="st-note first">Walk each pathway one step at a time, in slide order, with the slide beside the map. Use ← → to move, or ▶ to play.</p>
-        {resume && done.size > 0 && (
-          <button className="sb-btn primary st-resume" onClick={() => onStart(resume.id)}><span>Continue: <Rich s={resume.title} /></span></button>
+        {resume && at ? (
+          <button className="sb-btn primary st-resume" onClick={() => onResume(resume)}>
+            <span>Continue: <Rich s={at.title} /> · step {resume.step + 1}</span>
+          </button>
+        ) : next && done.size > 0 && (
+          <button className="sb-btn primary st-resume" onClick={() => onStart(next.id)}><span>Next: <Rich s={next.title} /></span></button>
         )}
         {parts.map((p) => {
           const list = tours.filter((t) => t.part === p);
@@ -232,6 +281,7 @@ export function StudyPanel({ done, onStart, onClose }: PanelProps) {
             </section>
           );
         })}
+        <OfflineSlides />
       </div>
     </div>
   );
