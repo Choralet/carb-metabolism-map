@@ -105,7 +105,7 @@ export const lipidCards: Card[] = [
     bullets: [
       'When the diet provides enough carbohydrate, β-oxidation is unnecessary and is turned down. Two enzymes coordinate this: ACC (first enzyme of synthesis) and carnitine acyltransferase I (entry to β-oxidation).',
       'High blood glucose: 1) insulin is released; 2) a phosphatase dephosphorylates and activates ACC; 3) ACC makes malonyl-CoA; 4) malonyl-CoA inhibits carnitine acyltransferase I, so fatty acids do not enter the matrix.',
-      'Low blood glucose: 5) glucagon activates cAMP-dependent protein kinase (PKA); 6) PKA phosphorylates and inactivates ACC, malonyl-CoA falls and the block is relieved; 7) fatty acids enter the matrix; 8) β-oxidation provides fuel.',
+      'Low blood glucose: 5) glucagon activates cAMP-dependent protein kinase (PKA); 6) PKA phosphorylates and inactivates ACC (the figure labels the kinase “PKA, AMPK”), malonyl-CoA falls and the block is relieved; 7) fatty acids enter the matrix; 8) β-oxidation provides fuel.',
       'ACC is also regulated allosterically: citrate activates it; palmitoyl-CoA, the end product, inhibits it. Glucagon and epinephrine trigger its phosphorylation (inactivation).',
     ], mols: ['cit', 'malcoa', 'palmcoa'], slide: S + '36–39' },
   { id: 'l_c_vs', title: 'β-Oxidation vs fatty acid synthesis', sub: 'Not the reverse of each other',

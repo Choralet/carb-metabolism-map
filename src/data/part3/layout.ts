@@ -174,7 +174,7 @@ export const p15: PlateDef = {
   ],
   edges: [
     { id: 'e_lk1', from: 'accoa', to: 'lk_kb', enz: 'l_kbf', t: 0.9, tags: '→ CoA', tagPos: 'r', co: ['CoA'] },
-    { id: 'e_lk2', from: 'lk_kb', to: 'lk_tis', style: 'plain', tags: 'exported in the blood', tagPos: 'r', plainTag: true },
+    { id: 'e_lk2', from: 'lk_kb', to: 'lk_tis', style: 'plain', tags: 'acetoacetate and D-β-hydroxybutyrate exported in the blood', tagPos: 'r', plainTag: true },
   ],
 };
 
