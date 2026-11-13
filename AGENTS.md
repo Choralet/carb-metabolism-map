@@ -84,8 +84,9 @@ Data (`src/data/`):
 - **Include only what the slides show.**
 - **Cite every source.** Every enzyme, card and regulation block carries `slide`, e.g. `'Part III · slide 12'`. Use the prefix constants (`S`, `P1`, `P2`, `P3`) at the top of each file. The validator rejects a missing citation.
 - **Figure beats bullet.** Where a slide's bullet and its figure disagree, follow the figure and say so in the item's text. Known cases, not to be "fixed":
-  - Part III: slide 7 (lipoprotein lipase products), slide 8 (TPI acts on DHAP), slide 13 ("enol-" vs "enoyl-CoA hydratase"), slide 18 ("trans-Δ³" should be trans-Δ²), slide 22 ("90 mg/mL"), slide 35 (the polyunsaturated fatty acid bullet vs the figure).
+  - Part III: slide 8 (TPI acts on DHAP), slide 13 ("enol-" vs "enoyl-CoA hydratase"), slide 18 ("trans-Δ³" should be trans-Δ²), slide 22 ("90 mg/mL"), slide 35 (the polyunsaturated fatty acid bullet vs the figure).
   - Part IV: slide 18 (the cytosolic malate ⇌ oxaloacetate ⇌ aspartate steps run one way in the bullet and the other in the figure; both are reversible, so both directions are drawn), slide 31 (N¹⁰-formyl-THF is the formyl donor), slide 36 (adenine, not adenosine).
+- **One exception, by the user's choice:** Part III slide 7's lipoprotein lipase products follow the bullet (fatty acids and glycerol), not the figure (fatty acids and monoacylglycerols); the enzyme's text gives both.
 - **Unnamed enzymes become summary arrows.** Either an enzyme entry with `cls: ['other']` (e.g. "Ketone body formation"), or a `style: 'plain'` edge whose note is `tags` with `plainTag: true`.
 - **`cls` follows the EC number.** It is the enzyme type and drives the colour/shape highlight. When the name suggests another class, keep the EC class and explain it in `text`. Precedents: PEPCK, citrate lyase, cystathionine β-synthase, IMP synthase, FGAR and XMP amidotransferases, O-acetylserine lyase.
 - **`rev`:** `true` = reversible, `false` = irreversible in cells, `null` = the slides don't say.

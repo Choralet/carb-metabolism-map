@@ -14,10 +14,10 @@ export const lipidEnzymes: Enzyme[] = [
     text: ['Water-soluble lipases in the small intestine convert triacylglycerols to monoacylglycerols, diacylglycerols, free fatty acids and glycerol.',
       'They can only reach the fat once bile salts (made from cholesterol in the liver, stored in the gallbladder) have emulsified it into mixed micelles, which increases the fraction of lipid accessible to them.'],
     slide: S + '5' },
-  { id: 'l_lpl', name: 'Lipoprotein lipase', short: 'Lipoprotein lipase', cls: ['hydrolase'], ec: '3.1.1.34', rev: null, subs: ['tag'], prods: ['fa', 'mag'],
+  { id: 'l_lpl', name: 'Lipoprotein lipase', short: 'Lipoprotein lipase', cls: ['hydrolase'], ec: '3.1.1.34', rev: null, subs: ['tag'], prods: ['fa', 'glycerol'],
     text: ['In the capillaries of muscle and adipose tissue, lipoprotein lipase, activated by apoC-II, hydrolyzes the triacylglycerols carried by chylomicrons.',
       'The fatty acids then enter the cells: in muscle they are oxidized for energy; in adipose tissue they are re-esterified and stored as triacylglycerols.',
-      'Products: the figure says fatty acids and monoacylglycerols; the bullet on the same slide says fatty acids and glycerol. The map follows the figure.'],
+      'Products: the bullet says fatty acids and glycerol, which is what the map draws; the figure on the same slide says fatty acids and monoacylglycerols. Both fit: lipoprotein lipase first leaves a monoacylglycerol, whose last fatty acid is then removed too.'],
     slide: S + '5, 7' },
 
   // ───────── Glycerol (slides 8, 42) ─────────
