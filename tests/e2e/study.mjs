@@ -155,6 +155,64 @@ export default async function study({ browser, base, check: ok }) {
   ok(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await ctx.close();
 
+  // leaving study mode always leaves it, however the history got there
+  const h = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const r = await h.newPage();
+  r.on('pageerror', (e) => errors.push(e.message));
+  const studying = async () => (await r.locator('.study-bar').count()) === 1;
+  const leave = async (how) => { if (how === 'x') await r.click('.study-bar [aria-label="Leave study mode"]'); else await r.keyboard.press('Escape'); await r.waitForTimeout(400); };
+  // 1. enter → Back → Forward → ✕
+  await r.goto(base, { waitUntil: 'networkidle' });
+  await r.click('button.study-btn');
+  await r.locator('.st-chapter', { hasText: box.title }).click();
+  await r.waitForTimeout(300);
+  await r.goBack(); await r.waitForTimeout(300);
+  ok(!(await studying()), 'Back leaves study mode');
+  await r.goForward(); await r.waitForTimeout(500);
+  ok(await studying(), 'Forward returns to it');
+  await leave('x');
+  ok(!(await studying()) && !new URL(r.url()).hash, '…and ✕ then leaves for good');
+  // 2. in study, a drawer, then "Study this step" (no second study entry), then ✕
+  await r.click('button.study-btn');
+  await r.locator('.st-chapter', { hasText: box.title }).click();
+  await r.waitForTimeout(300);
+  await r.locator('.sb-chip.enz').click();
+  await r.waitForTimeout(300);
+  await r.locator('.drawer .study-link').click();
+  await r.waitForTimeout(500);
+  ok(await studying() && !(await r.locator('.drawer').count()), '"Study this step" from a drawer in study mode stays in study mode');
+  await leave('x');
+  ok(!(await studying()) && !new URL(r.url()).hash, '…and ✕ then leaves it');
+  // 3. a #study link, a drawer from a chip, then ✕
+  await r.goto(`${base}#study/${box.id}/${box.steps[1].id}`, { waitUntil: 'networkidle' });
+  await r.waitForSelector('.study-bar');
+  await r.locator('.sb-chip.enz').click();
+  await r.waitForTimeout(300);
+  await leave('x');
+  ok(!(await studying()) && !(await r.locator('.drawer').count()) && !new URL(r.url()).hash, 'a #study link with a drawer open: ✕ leaves study mode');
+
+  // a slide cited in the details is shown for that step only
+  await r.goto(`${base}#study/${box.id}/${box.steps[0].id}`, { waitUntil: 'networkidle' });
+  await r.waitForSelector('.study-bar');
+  await r.locator('.sb-chip.enz').click();
+  await r.waitForTimeout(300);
+  await r.locator('.drawer .cite-slide').last().click();
+  const cited = await r.locator('.slide-viewer img').getAttribute('src');
+  await r.keyboard.press('Escape'); await r.waitForTimeout(200);
+  await r.click('.slide-viewer [aria-label="Hide the slide"]');
+  await r.keyboard.press('ArrowRight'); await r.waitForTimeout(300);
+  await r.locator('.sb-meta .sb-chip').last().click(); await r.waitForTimeout(200);
+  const src2 = await r.locator('.slide-viewer img').getAttribute('src');
+  ok(src2.endsWith(`/${slideNo(box.steps[1].slide)}.webp`), `after moving on, the window shows the new step’s slide, not the cited one (${cited.split('/').pop()} → ${src2.split('/').pop()})`);
+
+  // "Save all" really fills the offline cache
+  await r.click('button.study-btn');
+  await r.locator('.st-offline .sb-btn').click();
+  await r.locator('.st-offline .ok').waitFor({ timeout: 30000 });
+  const inCache = await r.evaluate(async () => (await (await caches.open('slides')).keys()).length);
+  ok(inCache >= 83, `"Save all" puts every slide in the offline cache (${inCache})`);
+  await h.close();
+
   // a phone: two fingers pinch-zoom the slide
   const ph = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const q = await ph.newPage();

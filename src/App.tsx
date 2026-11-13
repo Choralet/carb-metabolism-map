@@ -15,7 +15,7 @@ import RouteBar from './shell/RouteBar';
 import { identityName, traceRoute } from './route';
 import Search from './shell/Search';
 import TopBar, { type Panel } from './shell/TopBar';
-import { measureReserve, StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
+import { measureReserve, plateOfTour, StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
 import SlideViewer, { slideOf, type SlideRef } from './shell/SlideViewer';
 import { tourById, tours } from './data/tours';
 import { cofactors } from './data/cofactors';
@@ -160,13 +160,27 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       const l = parseHash(location.hash);
+      if (leaving.current) {
+        // exitStudy stepped back: wherever that lands, study mode stays closed
+        leaving.current = false;
+        setSelection(null);
+        if (l?.study) history.replaceState(null, '', location.pathname + location.search);
+        return;
+      }
+      if (pending.current) {
+        const t = pending.current;
+        pending.current = null;
+        setSelection(null);
+        showStep(t.tour, t.step);
+        return;
+      }
       // back on a study entry (the drawer opened from study mode was closed): carry on where the reader is, or open
       // the chapter it names
       if (l?.study && tourById[l.study.tour]) {
         setSelection(null);
         const cur = studyRef.current;
         if (cur && cur.tour === l.study.tour) history.replaceState(history.state, '', studyUrl(cur));
-        else openStudy(l.study.tour, linkStep(l.study));
+        else openStudy(l.study.tour, linkStep(l.study), true);
         return;
       }
       const sel = l?.sel && valid(l.sel, scene) ? l.sel : null;
@@ -226,6 +240,7 @@ export default function App() {
     go(stepView(tourById[tourId].steps[step], scene, phone, measureReserve(phone)));
   }, [go, scene, phone]);
   const showStep = (tourId: string, step: number) => {
+    setPeek(null);
     setStudy((s) => ({ tour: tourId, step, done: false, n: (s?.n ?? 0) + 1 }));
     frameStep(tourId, step);
   };
@@ -237,16 +252,28 @@ export default function App() {
    * the chapter and step (#study/<chapter>/<step>), and the place is also kept per viewer for "Continue".
    */
   const studyEntry = useRef(false);
+  /** Set while exitStudy steps back through history, so the entry it lands on is not taken as a study link. */
+  const leaving = useRef(false);
+  /** A chapter to open once Back has removed the drawer's entry ("Study this step" from a drawer over study mode). */
+  const pending = useRef<{ tour: string; step: number } | null>(null);
   const studyUrl = (s: { tour: string; step: number; done: boolean }) => studyHash(s.tour, s.done ? 'done' : tourById[s.tour].steps[s.step].id);
   useEffect(() => {
     if (!study) return;
     if (!selRef.current) history.replaceState(history.state, '', studyUrl(study));
     store.set('atlas-study-at', study.done ? '' : JSON.stringify({ tour: study.tour, step: tourById[study.tour].steps[study.step].id }));
   }, [study]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openStudy = (tourId: string, step: number) => {
+  /** `adopt`: the current history entry already is this study link (Back/Forward onto it): use it, push nothing. */
+  const openStudy = (tourId: string, step: number, adopt = false) => {
     setPanel(null); setQuizOn(false); setAsk(null); setRouteEnds(null); setPinned(null); setPeek(null);
     const url = studyHash(tourId, tourById[tourId].steps[step].id);
-    if (selRef.current) {
+    if (adopt) studyEntry.current = history.state?.atlas === 'study';
+    else if (selRef.current && studyRef.current && studyEntry.current && history.state?.atlas === 'open') {
+      // a drawer opened from study mode: drop its entry, then carry on in the study entry below it
+      setSelection(null);
+      pending.current = { tour: tourId, step };
+      history.back();
+      return;
+    } else if (selRef.current) {
       // the drawer's entry becomes the study entry
       setSelection(null);
       if (history.state?.atlas === 'open') { history.replaceState({ atlas: 'study' }, '', url); studyEntry.current = true; }
@@ -261,8 +288,7 @@ export default function App() {
     setStudy(null); setPeek(null);
     const open = !!selRef.current && history.state?.atlas === 'open';
     if (selRef.current) setSelection(null);
-    if (studyEntry.current) history.go(open ? -2 : -1);
-    else if (open) history.back();
+    if (studyEntry.current || open) { leaving.current = true; history.go(studyEntry.current && open ? -2 : -1); }
     else if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     studyEntry.current = false;
   };
@@ -297,13 +323,12 @@ export default function App() {
     const W = (x1 - x0) / (1 - res.l - res.r), H = (y1 - y0) / (1 - res.t - res.b);
     go({ x: x0 - res.l * W, y: y0 - res.t * H, w: W, h: H });
   };
+  const tourPlate = studyTour ? plateOfTour(studyTour, scene) : null;
   const quizTourPlate = () => {
-    if (!studyTour) return;
-    const first = studyTour.steps.find((s) => s.edge);
-    const plateId = first && scene.edges.find((e) => e.id === first.edge)?.plate;
-    const r = scene.regions.find((x) => x.id === plateId);
+    const r = tourPlate?.own && scene.regions.find((x) => x.id === tourPlate.id);
+    if (!r) return;
     exitStudy();
-    if (r) setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
+    setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
     setQuizOn(true);
   };
 
@@ -432,7 +457,7 @@ export default function App() {
             beside={!!selection} slideHidden={!slidesOn} onShowSlide={() => setSlidesOn(true)} onSelect={select}
             onStep={(i) => showStep(study.tour, i)} onFinish={finishTour} onReplay={() => showStep(study.tour, 0)}
             onNext={(() => { const i = tours.indexOf(studyTour); const nx = tours[i + 1]; return nx ? () => startTour(nx.id) : null; })()}
-            onQuiz={quizTourPlate} onExit={exitStudy} />
+            onQuiz={tourPlate?.own ? quizTourPlate : null} onExit={exitStudy} />
         )}
         {study && studySlide && slidesOn && <SlideViewer slide={studySlide} peek={peek} phone={phone} onClose={() => setSlidesOn(false)} onMoved={reframe} />}
         {!study && pinned && <SlideViewer slide={pinned} phone={phone} backLabel="Back to cited slide" onClose={() => setPinned(null)} />}

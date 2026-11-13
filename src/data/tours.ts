@@ -25,7 +25,11 @@ export interface TourStep {
   slide: string;
 }
 
-export interface Tour { id: string; part: Part; title: string; sub: string; slides: string; steps: TourStep[] }
+export interface Tour {
+  id: string; part: Part; title: string; sub: string; slides: string; steps: TourStep[];
+  /** The plate it is listed under, for a chapter whose arrows belong to no plate (Part IV slide 19's skeleton arrows). */
+  plate?: string;
+}
 
 const S = 'Part III · slide ';
 const N = 'Part IV · slide ';
@@ -48,7 +52,7 @@ export const tours: Tour[] = [
       { id: 's5', edge: 'e_ld5', title: 'Lymph, then blood', slide: S + '7',
         say: 'Chylomicrons travel from the intestine into the lymph, then into the blood, which carries them to muscle and fat (adipose) tissue.' },
       { id: 's6', edge: 'e_ld6', title: 'Lipoprotein lipase', slide: S + '7',
-        say: 'In the capillaries, lipoprotein lipase, switched on by apoC-II, cuts the triacylglycerols into fatty acids and glycerol.' },
+        say: 'In the capillaries, lipoprotein lipase, switched on by apoC-II, cuts the triacylglycerols into fatty acids and glycerol. (The slide’s figure says fatty acids and monoacylglycerols.)' },
       { id: 's7', edge: 'e_ld7', title: 'Fatty acids enter cells', slide: S + '7',
         say: 'The fatty acids enter the cells: muscle cells (myocytes) or fat cells (adipocytes).' },
       { id: 's8', node: 'lt_fa', title: 'Burned or stored', slide: S + '7',
@@ -65,7 +69,7 @@ export const tours: Tour[] = [
       { id: 's3', edge: 'e_lt1', back: true, title: 'Oxidized to DHAP', slide: S + '8',
         say: 'Glycerol 3-phosphate dehydrogenase oxidizes it to dihydroxyacetone phosphate (DHAP). NAD⁺ takes the electrons and becomes NADH. (This arrow runs both ways; here it runs backwards.)' },
       { id: 's4', edge: 'e_tpi', title: 'Into glycolysis', slide: S + '8',
-        say: 'Triose phosphate isomerase turns DHAP into glyceraldehyde 3-phosphate, which carries on down glycolysis.' },
+        say: 'Triose phosphate isomerase turns DHAP into glyceraldehyde 3-phosphate, which carries on down glycolysis. (The bullet says TPI acts on glycerol 3-phosphate; the figure shows DHAP.)' },
     ],
   },
   {
@@ -89,7 +93,7 @@ export const tours: Tour[] = [
       { id: 's1', edge: 'e_lb1', title: 'Dehydrogenation (FAD)', slide: S + '13',
         say: 'Acyl-CoA dehydrogenase makes a double bond between the α and β carbons (C-2 and C-3), giving trans-Δ²-enoyl-CoA. FAD takes the electrons and becomes FADH₂.' },
       { id: 's2', edge: 'e_lb2', title: 'Add water', slide: S + '13',
-        say: 'Enoyl-CoA hydratase adds water across that double bond, giving L-β-hydroxyacyl-CoA.' },
+        say: 'Enoyl-CoA hydratase adds water across that double bond, giving L-β-hydroxyacyl-CoA. (The bullet spells it “enol-CoA hydratase”.)' },
       { id: 's3', edge: 'e_lb3', title: 'Dehydrogenation (NAD⁺)', slide: S + '14',
         say: 'β-Hydroxyacyl-CoA dehydrogenase oxidizes it to β-ketoacyl-CoA. NAD⁺ takes the electrons; the NADH passes them on to the respiratory chain.' },
       { id: 's4', edge: 'e_lb4', title: 'Cut off two carbons', slide: S + '14',
@@ -119,7 +123,7 @@ export const tours: Tour[] = [
       { id: 's1', edge: 'e_lo1', title: 'Oleate: three normal rounds', slide: S + '17',
         say: 'Oleoyl-CoA (18 carbons, one cis double bond at C-9) goes through three ordinary rounds of β-oxidation, giving 3 acetyl-CoA.' },
       { id: 's2', edge: 'e_lo2', title: 'The isomerase fixes the bond', slide: S + '18',
-        say: 'Now the cis double bond sits at Δ³, where enoyl-CoA hydratase cannot use it. Δ³,Δ²-enoyl-CoA isomerase moves it to the trans-Δ² position.' },
+        say: 'Now the cis double bond sits at Δ³, where enoyl-CoA hydratase cannot use it. Δ³,Δ²-enoyl-CoA isomerase moves it to the trans-Δ² position. (The bullet writes trans-Δ³; the figure shows trans-Δ².)' },
       { id: 's3', edge: 'e_lo3', title: 'Finish as usual', slide: S + '18',
         say: 'With a normal trans-Δ² bond, five more rounds finish the job: 6 more acetyl-CoA, 9 in all from oleate.' },
       { id: 's4', edge: 'e_ln1', title: 'Linoleate: two double bonds', slide: S + '19',
@@ -148,7 +152,7 @@ export const tours: Tour[] = [
       { id: 's4', node: 'l_c_ketosis', title: 'Too many: ketosis', slide: S + '21',
         say: 'In starvation and untreated diabetes the cycle’s intermediates are used up by gluconeogenesis, so acetyl-CoA piles up and becomes ketone bodies. Too many lower blood pH (acidosis).' },
       { id: 's5', node: 'l_c_ketosis', title: 'How high: ketosis', slide: S + '22',
-        say: 'Untreated diabetics can reach 90 mg ketone bodies per 100 mL of blood (normal: under 3) and lose 5,000 mg a day in urine. Very low-calorie diets raise them too, so they must be watched.' },
+        say: 'Untreated diabetics can reach 90 mg ketone bodies per 100 mL of blood (normal: under 3; the slide writes “90 mg/mL”) and lose 5,000 mg a day in urine. Very low-calorie diets raise them too.' },
     ],
   },
   {
@@ -217,7 +221,7 @@ export const tours: Tour[] = [
       { id: 's6', edge: 'e_le6', title: 'α-Linolenate: plants only', slide: S + '35',
         say: 'α-Linolenate is also made only in plants, so it is essential too.' },
       { id: 's7', edge: 'e_le8', title: 'What we can do with linoleate', slide: S + '35',
-        say: 'From dietary linoleate, mammals can add a double bond at Δ⁶, making γ-linolenate…' },
+        say: 'From dietary linoleate, mammals can add a double bond at Δ⁶, making γ-linolenate… (The bullet says humans cannot make polyunsaturated fatty acids; the figure shows what they cannot make is linoleate itself.)' },
       { id: 's8', edge: 'e_le9', title: 'Lengthen…', slide: S + '35',
         say: '…lengthen it to the 20-carbon eicosatrienoate…' },
       { id: 's9', edge: 'e_le10', title: '…and desaturate to arachidonate', slide: S + '35',
@@ -394,7 +398,7 @@ export const tours: Tour[] = [
     ],
   },
   {
-    id: 't_n_skel', part: 'IV', title: 'Where the carbon skeletons go', sub: 'Glucogenic and ketogenic amino acids', slides: '19',
+    id: 't_n_skel', part: 'IV', plate: 'r_n21', title: 'Where the carbon skeletons go', sub: 'Glucogenic and ketogenic amino acids', slides: '19',
     steps: [
       { id: 's1', edge: 'e_ns19', title: 'To pyruvate', slide: N + '19',
         say: 'With the amino group gone, each carbon skeleton is broken down to a fuel molecule. Ala, Cys, Gly, Ser, Thr and Trp become pyruvate.' },
@@ -537,7 +541,7 @@ export const tours: Tour[] = [
       { id: 's3', edge: 'e_np2', title: '2 · Add glycine', slide: N + '31',
         say: 'GAR synthetase adds glycine, using ATP. Three of its atoms become C-4, C-5 and N-7 of the purine.' },
       { id: 's4', edge: 'e_np3', title: '3 · Add a formyl group', slide: N + '31',
-        say: 'GAR transformylase adds a formyl group from N¹⁰-formyltetrahydrofolate.' },
+        say: 'GAR transformylase adds a formyl group from N¹⁰-formyltetrahydrofolate. (The bullet reads as if that folate were made here; the figure shows it as the donor.)' },
       { id: 's5', edge: 'e_np4', title: '4 · Another nitrogen', slide: N + '31',
         say: 'Glutamine gives another amino group (N-3), using ATP.' },
       { id: 's6', edge: 'e_np5', title: '5 · Close the first ring', slide: N + '31',
@@ -611,7 +615,7 @@ export const tours: Tour[] = [
     id: 't_n_sal', part: 'IV', title: 'Salvage: reusing purine bases', sub: 'One step instead of eleven', slides: '36',
     steps: [
       { id: 's1', edge: 'e_nx5', title: 'Adenine → AMP', slide: N + '36',
-        say: 'Free bases are released all the time as nucleotides break down. Adenine phosphoribosyltransferase puts adenine straight back on PRPP: AMP + PPi.' },
+        say: 'Free bases are released all the time as nucleotides break down. Adenine phosphoribosyltransferase puts adenine straight back on PRPP: AMP + PPi. (The bullet says “adenosine”; the figure shows adenine.)' },
       { id: 's2', edge: 'e_nx6', title: 'Hypoxanthine → IMP', slide: N + '36',
         say: 'Hypoxanthine-guanine phosphoribosyltransferase does the same for hypoxanthine, making IMP…' },
       { id: 's3', edge: 'e_nx7', title: 'Guanine → GMP', slide: N + '36',

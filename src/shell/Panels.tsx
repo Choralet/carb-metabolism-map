@@ -9,6 +9,7 @@ import { InfoGlyph, markPath, MarkIcon, RegIcon } from '../map/glyphs';
 import { Rich } from '../rich';
 import { CloseIcon, StudyIcon } from './icons';
 import { tours } from '../data/tours';
+import { plateOfTour } from './Study';
 
 export const PART_TITLE: Record<Part, string> = {
   I: 'Glycolysis, gluconeogenesis, PPP & glycogen',
@@ -39,15 +40,12 @@ interface PlatesProps {
   onClose: () => void;
 }
 
-/** The plate each study chapter walks: the one most of its arrows belong to. */
+/** The study chapters listed under each plate. */
 function chapterPlates(scene: Scene): Map<string, string[]> {
   const byPlate = new Map<string, string[]>();
-  const edgePlate = new Map(scene.edges.map((e) => [e.id, e.plate]));
   for (const t of tours) {
-    const count = new Map<string, number>();
-    t.steps.forEach((st) => { const p = st.edge && edgePlate.get(st.edge); if (p) count.set(p, (count.get(p) ?? 0) + 1); });
-    const top = [...count].sort((a, b) => b[1] - a[1])[0]?.[0];
-    if (top) byPlate.set(top, [...(byPlate.get(top) ?? []), t.id]);
+    const p = plateOfTour(t, scene);
+    if (p) byPlate.set(p.id, [...(byPlate.get(p.id) ?? []), t.id]);
   }
   return byPlate;
 }
