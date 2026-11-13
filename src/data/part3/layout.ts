@@ -19,7 +19,7 @@ export const p9: PlateDef = {
     { id: 'ld_tag1', x: 2120, y: 720, mol: 'tag', label: 'Triacylglycerols (intestinal mucosa)' },
     { id: 'ld_chylo', x: 2120, y: 890, kind: 'proc', label: 'Chylomicrons (100–500 nm)' },
     { id: 'ld_tag2', x: 2120, y: 1060, mol: 'tag', label: 'Triacylglycerols (capillary)' },
-    { id: 'ld_fa', x: 2120, y: 1230, mols: ['fa', 'mag'], label: 'Fatty acids + monoacylglycerols' },
+    { id: 'ld_fa', x: 2120, y: 1230, mols: ['fa', 'glycerol'], label: 'Fatty acids + glycerol' },
     { id: 'l_c_diet', x: 2500, y: 1400, kind: 'card', card: 'l_c_diet', label: 'The 8 steps' },
     { id: 'l_c_fuel', x: 2500, y: 1460, kind: 'card', card: 'l_c_fuel', label: 'Fatty acids as fuel' },
   ],
@@ -174,7 +174,7 @@ export const p15: PlateDef = {
   ],
   edges: [
     { id: 'e_lk1', from: 'accoa', to: 'lk_kb', enz: 'l_kbf', t: 0.9, tags: '→ CoA', tagPos: 'r', co: ['CoA'] },
-    { id: 'e_lk2', from: 'lk_kb', to: 'lk_tis', style: 'plain', tags: 'exported in the blood', tagPos: 'r', plainTag: true },
+    { id: 'e_lk2', from: 'lk_kb', to: 'lk_tis', style: 'plain', tags: 'acetoacetate and D-β-hydroxybutyrate exported in the blood', tagPos: 'r', plainTag: true },
   ],
 };
 

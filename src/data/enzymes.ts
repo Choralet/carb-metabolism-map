@@ -186,11 +186,12 @@ export const enzymes: Enzyme[] = [
       'Part III, citrate shuttle: in the cytosol it reduces the oxaloacetate left by citrate lyase to malate (step 5), because there is no oxaloacetate transporter; malate that returns to the matrix is oxidized back to oxaloacetate (step 7).'], slide: P2 + '11, 19 · ' + P3 + '25–26' },
 
   // ───────── NADH shuttles (Part II slides 18–20) ─────────
-  { id: 'aat', name: 'Aspartate aminotransferase', short: 'AST', cls: ['transferase'], ec: '2.6.1.1', rev: null, subs: ['oaa', 'glu'], prods: ['asp', 'akg'],
+  { id: 'aat', name: 'Aspartate aminotransferase', short: 'AST', cls: ['transferase'], ec: '2.6.1.1', rev: true, subs: ['oaa', 'glu'], prods: ['asp', 'akg'],
     text: ['Transaminase of the malate-aspartate shuttle; it appears on both sides of the inner membrane.',
       'Matrix side (step 4): oxaloacetate is first transaminated to aspartate, taking the amino group from glutamate, which becomes α-ketoglutarate.',
       'Cytosolic side (step 6): the same kind of reaction runs the other way. Aspartate gives its amino group to α-ketoglutarate, so oxaloacetate is regenerated in the cytosol and glutamate is formed.',
-      'Part IV, urea cycle: the same transamination of oxaloacetate with glutamate makes the aspartate that carries the second amino group into the urea cycle, in the matrix and, through the aspartate-argininosuccinate shunt, in the cytosol.'], slide: P2 + '19 · Part IV · slide 15, 18' },
+      'Part IV, urea cycle: the same transamination of oxaloacetate with glutamate makes the aspartate that carries the second amino group into the urea cycle, in the matrix and, through the aspartate-argininosuccinate shunt, in the cytosol.',
+      'Transamination is reversible (Part IV slide 10), which is why the same enzyme can run either way on the two sides of the membrane.'], slide: P2 + '19 · Part IV · slide 10, 15, 18' },
   { id: 'mkt', name: 'Malate-α-ketoglutarate transporter', short: 'Malate–α-KG transporter', cls: ['other'], rev: null,
     text: ['Inner-membrane transporter (step 2) that carries malate across into the matrix.',
       'The slide names it a malate-α-ketoglutarate transporter; α-ketoglutarate is drawn returning to the cytosolic side (as the by-product of matrix transamination), so that leg is shown on this transporter. The slide does not label that leg itself.',

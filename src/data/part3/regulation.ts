@@ -15,7 +15,8 @@ export const lipidReg: RegBlock[] = [
     detail: ['The rate-limiting step of fatty acid synthesis. In vertebrate cells, both allosteric regulation and hormone-dependent covalent modification control the flow of precursors into malonyl-CoA.',
       'Allosteric: citrate activates it; palmitoyl-CoA, the end product of the pathway, inhibits it.',
       'High blood glucose → insulin → a phosphatase dephosphorylates ACC, activating it.',
-      'Low blood glucose → glucagon → cAMP-dependent protein kinase (PKA) phosphorylates ACC, inactivating it. Epinephrine also triggers its phosphorylation.'],
+      'Low blood glucose → glucagon → cAMP-dependent protein kinase (PKA) phosphorylates ACC, inactivating it. Epinephrine also triggers its phosphorylation.',
+      'The slide 39 bullet names PKA; its figure labels the kinase “PKA, AMPK”.'],
     slide: S + '36, 38–39',
   },
   {

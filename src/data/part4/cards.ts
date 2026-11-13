@@ -33,7 +33,7 @@ export const aminoCards: Card[] = [
   { id: 'n_c_excrete', title: 'Excreting nitrogen', sub: 'NH₃ is toxic',
     bullets: [
       'Ammonotelic animals excrete ammonia (NH₄⁺): most aquatic vertebrates, such as bony fishes and the larvae of amphibia.',
-      'Ureotelic animals excrete urea: most terrestrial vertebrates, and also sharks.',
+      'Ureotelic animals excrete urea: many terrestrial vertebrates, and also sharks. This follows the slide 9 figure; the slide 11 bullet says “most terrestrial animals”.',
       'Uricotelic animals excrete uric acid: birds and reptiles.',
     ],
     table: [{

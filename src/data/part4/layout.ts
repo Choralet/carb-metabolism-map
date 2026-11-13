@@ -277,7 +277,7 @@ export const p25: PlateDef = {
     { id: 'e_nsg2', from: 'nsg_php', to: 'nsg_pser', enz: 'n_psat', tags: 'Glutamate → α-Ketoglutarate', tagPos: 'r' },
     { id: 'e_nsg3', from: 'nsg_pser', to: 'nsg_ser', enz: 'n_psp', tags: 'H₂O → Pi', tagPos: 'r', co: ['Pi'] },
     { id: 'e_nsg4', from: 'nsg_ser', to: 'nsg_gly', enz: 'n_shmt', tags: 'H₄ folate → N⁵,N¹⁰-methylene-H₄ folate + H₂O', tagPos: 'r', co: ['PLP', 'THF'] },
-    { id: 'e_nsg5', from: 'nsg_co2', to: 'nsg_gly', enz: 'n_glysyn', tags: 'N⁵,N¹⁰-methylene-H₄ folate → H₄ folate', tagPos: 'below', co: ['THF', 'NADH', 'CO2'] },
+    { id: 'e_nsg5', from: 'nsg_co2', to: 'nsg_gly', enz: 'n_glysyn', tags: 'N⁵,N¹⁰-methylene-H₄ folate + NADH + H⁺ → H₄ folate + NAD⁺', tagPos: 'below', co: ['THF', 'NADH', 'CO2'] },
   ],
 };
 
