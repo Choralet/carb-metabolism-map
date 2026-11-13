@@ -7,8 +7,9 @@ import { launch } from './browser.mjs';
 import smoke from './smoke.mjs';
 import links from './links.mjs';
 import layout from './layout.mjs';
+import study from './study.mjs';
 
-const suites = [['smoke', smoke], ['deep links', links], ['layout', layout]];
+const suites = [['smoke', smoke], ['deep links', links], ['study mode', study], ['layout', layout]];
 
 if (!existsSync(new URL('../../dist/index.html', import.meta.url))) {
   console.error('No build found: run "npm run build" first.');

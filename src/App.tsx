@@ -15,6 +15,9 @@ import RouteBar from './shell/RouteBar';
 import { identityName, traceRoute } from './route';
 import Search from './shell/Search';
 import TopBar, { type Panel } from './shell/TopBar';
+import { measureReserve, StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
+import SlideViewer, { slideOf } from './shell/SlideViewer';
+import { tourById, tours } from './data/tours';
 import { cofactors } from './data/cofactors';
 import { bestPlace, PHONE_QUERY, placesOf, regionView, viewAround } from './locate';
 import { copyText, currentView, parseHash, toHash, type Link } from './links';
@@ -182,6 +185,64 @@ export default function App() {
   };
   const startRoutePick = (mol: string, end: 'from' | 'to') => { closeDrawer(); setRoutePick({ fixed: mol, end }); };
 
+  // ── study mode ────────────────────────────────────────────────────
+  // One chapter at a time. Finished chapters are remembered per viewer (a convenience: losing it loses only ticks).
+  const [study, setStudy] = useState<{ tour: string; step: number; done: boolean; n: number } | null>(null);
+  const [studyDone, setStudyDone] = useState<Set<string>>(() => {
+    try { const v = JSON.parse(store.get('atlas-study') ?? '[]'); return new Set(Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []); } catch { return new Set(); }
+  });
+  const studyTour = study ? tourById[study.tour] : null;
+  const studyHi = useMemo(() => (study && studyTour ? tourTrail(studyTour, study.done ? studyTour.steps.length - 1 : study.step, scene) : null), [study, studyTour, scene]);
+  const studyNow = useMemo(() => {
+    if (!study || !studyTour || study.done) return null;
+    const s = studyTour.steps[study.step];
+    return { edge: s.edge, node: s.node, back: s.back, n: study.n };
+  }, [study, studyTour]);
+  const [slidesOn, setSlidesOn] = useState(true);
+  const frameStep = useCallback((tourId: string, step: number) => {
+    go(stepView(tourById[tourId].steps[step], scene, phone, measureReserve(phone)));
+  }, [go, scene, phone]);
+  const showStep = (tourId: string, step: number) => {
+    setStudy((s) => ({ tour: tourId, step, done: false, n: (s?.n ?? 0) + 1 }));
+    frameStep(tourId, step);
+  };
+  /** After the slide window is moved, resized, shown or hidden, frame the step again around it. */
+  const studyRef = useRef(study);
+  studyRef.current = study;
+  const reframe = useCallback(() => { const s = studyRef.current; if (s && !s.done) frameStep(s.tour, s.step); }, [frameStep]);
+  useEffect(() => { const t = setTimeout(reframe, 60); return () => clearTimeout(t); }, [slidesOn, reframe]);
+  const studySlide = study && studyTour ? slideOf(studyTour.steps[study.done ? studyTour.steps.length - 1 : study.step].slide) : null;
+  const startTour = (tourId: string) => {
+    setPanel(null); closeDrawer(); setQuizOn(false); setAsk(null); setRouteEnds(null);
+    // a chapter of the faded exam widens the switch to Both for now, so the walkthrough is never on faded ink
+    const t = tourById[tourId];
+    if (!inExam(t.part === 'III' || t.part === 'IV' ? 'final' : 'mid', scope)) setScope('both');
+    showStep(tourId, 0);
+  };
+  const finishTour = () => {
+    if (!study || !studyTour) return;
+    setStudy({ ...study, done: true, n: study.n + 1 });
+    setStudyDone((d) => { const n = new Set(d).add(study.tour); store.set('atlas-study', JSON.stringify([...n])); return n; });
+    // step back to see the whole chapter lit
+    const { nodeMap } = geometryOf(scene);
+    const ids = studyTour.steps.flatMap((s) => { const e = s.edge && scene.edges.find((x) => x.id === s.edge); return e ? [e.from, e.to] : s.node ? [s.node] : []; });
+    const pts = ids.map((id) => nodeMap[id]).filter(Boolean);
+    const x0 = Math.min(...pts.map((p) => p.x)) - 260, x1 = Math.max(...pts.map((p) => p.x)) + 260;
+    const y0 = Math.min(...pts.map((p) => p.y)) - 140, y1 = Math.max(...pts.map((p) => p.y)) + 140;
+    const res = measureReserve(phone);
+    const W = (x1 - x0) / (1 - res.l - res.r), H = (y1 - y0) / (1 - res.t - res.b);
+    go({ x: x0 - res.l * W, y: y0 - res.t * H, w: W, h: H });
+  };
+  const quizTourPlate = () => {
+    if (!studyTour) return;
+    const first = studyTour.steps.find((s) => s.edge);
+    const plateId = first && scene.edges.find((e) => e.id === first.edge)?.plate;
+    const r = scene.regions.find((x) => x.id === plateId);
+    setStudy(null);
+    if (r) setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
+    setQuizOn(true);
+  };
+
   /** The exam switch only changes what is highlighted; the camera stays where it is. */
   const changeScope = (s: Scope) => {
     setScope(s);
@@ -237,7 +298,7 @@ export default function App() {
     if (next.has(k)) { if (next.size > 1) next.delete(k); } else next.add(k);
     return next;
   });
-  const toggleQuiz = () => { setQuizOn((v) => !v); setAsk(null); closeDrawer(); setRouteEnds(null); };
+  const toggleQuiz = () => { setQuizOn((v) => !v); setAsk(null); closeDrawer(); setRouteEnds(null); setStudy(null); };
 
   // ── highlight counts (within scope) ───────────────────────────────
   const counts = useMemo(() => {
@@ -290,7 +351,7 @@ export default function App() {
     <div className={`app${chrome ? '' : ' bare'}`}>
       {chrome && (
         <TopBar scope={scope} onScope={changeScope} onSearch={() => setSearching(true)} panel={panel} onPanel={setPanel}
-          quizOn={quizOn} onQuiz={toggleQuiz} dark={dark} onTheme={() => { setDark((d) => { store.set('atlas-theme', d ? 'light' : 'dark'); return !d; }); }}
+          quizOn={quizOn} onQuiz={toggleQuiz} studying={!!study} dark={dark} onTheme={() => { setDark((d) => { store.set('atlas-theme', d ? 'light' : 'dark'); return !d; }); }}
           highlights={highlights} />
       )}
       {chrome && quizOn && (
@@ -300,13 +361,22 @@ export default function App() {
 
       <main>
         <Diagram scene={scene} scope={scope} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={select}
-          focus={focus} start={start} quiz={quiz} onReveal={reveal} route={routeHi} />
+          focus={focus} start={start} quiz={quiz} onReveal={reveal} route={studyHi ?? routeHi} tour={studyNow} />
 
-        {routeEnds && (
+        {study && studyTour && (
+          <StudyBar scene={scene} tour={studyTour} step={study.step} done={study.done}
+            beside={!!selection} slideHidden={!slidesOn} onShowSlide={() => setSlidesOn(true)} onSelect={select}
+            onStep={(i) => showStep(study.tour, i)} onFinish={finishTour} onReplay={() => showStep(study.tour, 0)}
+            onNext={(() => { const i = tours.indexOf(studyTour); const nx = tours[i + 1]; return nx ? () => startTour(nx.id) : null; })()}
+            onQuiz={quizTourPlate} onExit={() => setStudy(null)} />
+        )}
+        {study && studySlide && slidesOn && <SlideViewer slide={studySlide} phone={phone} onClose={() => setSlidesOn(false)} onMoved={reframe} />}
+
+        {routeEnds && !study && (
           <RouteBar scene={scene} from={routeEnds.from} to={routeEnds.to} route={traced} onGo={go}
             onSwap={() => showRoute(routeEnds.to, routeEnds.from)} onClear={() => setRouteEnds(null)} />
         )}
-        {!routeEnds && highlights > 0 && (
+        {!routeEnds && !study && highlights > 0 && (
           <div className="hl-bar" role="status">
             <span className="hl-label">Highlighting</span>
             {[...filter].map((c) => (
@@ -325,6 +395,7 @@ export default function App() {
 
         <Key open={keyOpen} onToggle={() => setKeyOpen((v) => { store.set('atlas-key', v ? '0' : '1'); return !v; })} showReg={showReg} />
 
+        {panel === 'study' && <StudyPanel done={studyDone} onStart={startTour} onClose={() => setPanel(null)} />}
         {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onPick={pick} onClose={() => setPanel(null)} />}
         {panel === 'layers' && (
           <LayersPanel counts={counts} coCounts={coCounts} filter={filter} onToggle={toggle} co={co} onToggleCo={toggleCo}
