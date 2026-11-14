@@ -594,7 +594,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     }
     if (kind === 'card') {
       return (
-        <g key={n.id} className={`${cls} lod-mid`} data-node={n.id} {...props} transform={`translate(${n.x},${n.y})`}>
+        <g key={n.id} className={`${cls} lod-mid${tour?.node === n.id ? ' study-now' : ''}`} data-node={n.id} {...props} transform={`translate(${n.x},${n.y})`}>
           <rect className="cardbox" x={-hw} y={-hh} width={hw * 2} height={hh * 2} rx={hh} />
           <InfoGlyph x={-hw + 13} y={0} table={!!cardById[n.card!]?.table} />
           <text x={-hw + 26} y={4.4} className="card-label"><Tspans s={label} size={TY.card} /></text>

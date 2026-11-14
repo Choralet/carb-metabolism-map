@@ -15,12 +15,12 @@ import RouteBar from './shell/RouteBar';
 import { identityName, traceRoute } from './route';
 import Search from './shell/Search';
 import TopBar, { type Panel } from './shell/TopBar';
-import { measureReserve, StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
-import SlideViewer, { slideOf } from './shell/SlideViewer';
+import { measureReserve, plateOfTour, StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
+import SlideViewer, { slideOf, type SlideRef } from './shell/SlideViewer';
 import { tourById, tours } from './data/tours';
 import { cofactors } from './data/cofactors';
 import { bestPlace, PHONE_QUERY, placesOf, regionView, viewAround } from './locate';
-import { copyText, currentView, parseHash, toHash, type Link } from './links';
+import { copyText, currentView, parseHash, studyHash, toHash, type Link } from './links';
 import { cardById } from './data/cards';
 import { regById } from './data/regulation';
 import { geometryOf, labelOf } from './map/geometry';
@@ -70,7 +70,7 @@ function linkView(l: Link, scene: Scene, scope: Scope): View | null {
 /** A link into material the stored exam switch fades widens it to Both, so the link never lands on faded ink. */
 function scopeFor(l: Link | null, scene: Scene, scope: Scope): Scope {
   if (!l || scope === 'both') return scope;
-  const exams: ExamTag[] = l.sel ? placesOf(l.sel, scene).map((p) => p.exam)
+  const exams: ExamTag[] = l.study ? ['final'] : l.sel ? placesOf(l.sel, scene).map((p) => p.exam)
     : l.plate ? scene.regions.filter((r) => r.plate === l.plate).map((r) => (r.part === 'III' || r.part === 'IV' ? 'final' : 'mid'))
       : [];
   return exams.length && !exams.some((x) => inExam(x, scope)) ? 'both' : scope;
@@ -103,8 +103,14 @@ export default function App() {
   // a deep link in the URL decides the first selection and camera
   const [link] = useState<Link | null>(() => {
     const l = parseHash(location.hash);
+    if (l?.study && !tourById[l.study.tour]) return null;
     return l && (!l.sel || valid(l.sel, scene)) ? l : null;
   });
+  /** A #study link opens its chapter at its step ("done", or an unknown step, opens the last step). */
+  const linkStep = (st: { tour: string; step: string }) => {
+    const steps = tourById[st.tour].steps, i = steps.findIndex((x) => x.id === st.step);
+    return i >= 0 ? i : st.step === 'done' ? steps.length - 1 : 0;
+  };
   const [scope, setScope] = useState<Scope>(() => {
     const s = store.get('atlas-scope');
     return scopeFor(link, scene, s === 'mid' || s === 'final' || s === 'both' ? s : 'both');
@@ -119,7 +125,8 @@ export default function App() {
   const [co, setCo] = useState<Set<CoKey>>(new Set());
   const [showReg, setShowReg] = useState(false);
   const [selection, setSelection] = useState<Selection>(() => link?.sel ?? null);
-  const [start] = useState(() => (link && linkView(link, scene, scope)) || startView(scene, phone));
+  const [start] = useState(() => (link?.study ? stepView(tourById[link.study.tour].steps[linkStep(link.study)], scene, phone, measureReserve(phone)) : null)
+    || (link && linkView(link, scene, scope)) || startView(scene, phone));
   const [focus, setFocus] = useState<{ view: View; n: number }>({ view: start, n: 0 });
   const [panel, setPanel] = useState<Panel>(null);
   const [searching, setSearching] = useState(false);
@@ -153,17 +160,39 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       const l = parseHash(location.hash);
+      if (leaving.current) {
+        // exitStudy stepped back: wherever that lands, study mode stays closed
+        leaving.current = false;
+        setSelection(null);
+        if (l?.study) history.replaceState(null, '', location.pathname + location.search);
+        return;
+      }
+      if (pending.current) {
+        const t = pending.current;
+        pending.current = null;
+        setSelection(null);
+        showStep(t.tour, t.step);
+        return;
+      }
+      // back on a study entry (the drawer opened from study mode was closed): carry on where the reader is, or open
+      // the chapter it names
+      if (l?.study && tourById[l.study.tour]) {
+        setSelection(null);
+        const cur = studyRef.current;
+        if (cur && cur.tour === l.study.tour) history.replaceState(history.state, '', studyUrl(cur));
+        else openStudy(l.study.tour, linkStep(l.study), true);
+        return;
+      }
       const sel = l?.sel && valid(l.sel, scene) ? l.sel : null;
       setSelection(sel);
+      // back past the entry study mode pushed: study mode ends
+      if (!sel && studyRef.current) { studyEntry.current = false; setStudy(null); }
       const v = sel && l && linkView(l, scene, scope);
       if (v) go(v);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [scene, scope, go]);
-  useEffect(() => {
-    document.title = selection ? `${titleOf(selection, scene)} · Metabolism Atlas` : 'Metabolism Atlas';
-  }, [selection, scene]);
   const copyLink = () => copyText(location.origin + location.pathname + toHash(selection, currentView()));
 
   // ── route tracer ──────────────────────────────────────────────────
@@ -187,7 +216,8 @@ export default function App() {
 
   // ── study mode ────────────────────────────────────────────────────
   // One chapter at a time. Finished chapters are remembered per viewer (a convenience: losing it loses only ticks).
-  const [study, setStudy] = useState<{ tour: string; step: number; done: boolean; n: number } | null>(null);
+  const [study, setStudy] = useState<{ tour: string; step: number; done: boolean; n: number } | null>(() =>
+    (link?.study ? { tour: link.study.tour, step: linkStep(link.study), done: false, n: 1 } : null));
   const [studyDone, setStudyDone] = useState<Set<string>>(() => {
     try { const v = JSON.parse(store.get('atlas-study') ?? '[]'); return new Set(Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []); } catch { return new Set(); }
   });
@@ -199,26 +229,86 @@ export default function App() {
     return { edge: s.edge, node: s.node, back: s.back, n: study.n };
   }, [study, studyTour]);
   const [slidesOn, setSlidesOn] = useState(true);
+  // a slide cited in the details: shown in the study window for a moment, or on its own outside study mode
+  const [peek, setPeek] = useState<{ slide: SlideRef; n: number } | null>(null);
+  const [pinned, setPinned] = useState<SlideRef | null>(null);
+  const openSlide = (r: SlideRef) => {
+    if (studyRef.current) { setSlidesOn(true); setPeek((p) => ({ slide: r, n: (p?.n ?? 0) + 1 })); }
+    else setPinned(r);
+  };
   const frameStep = useCallback((tourId: string, step: number) => {
     go(stepView(tourById[tourId].steps[step], scene, phone, measureReserve(phone)));
   }, [go, scene, phone]);
   const showStep = (tourId: string, step: number) => {
+    setPeek(null);
     setStudy((s) => ({ tour: tourId, step, done: false, n: (s?.n ?? 0) + 1 }));
     frameStep(tourId, step);
   };
-  /** After the slide window is moved, resized, shown or hidden, frame the step again around it. */
   const studyRef = useRef(study);
   studyRef.current = study;
-  const reframe = useCallback(() => { const s = studyRef.current; if (s && !s.done) frameStep(s.tour, s.step); }, [frameStep]);
-  useEffect(() => { const t = setTimeout(reframe, 60); return () => clearTimeout(t); }, [slidesOn, reframe]);
-  const studySlide = study && studyTour ? slideOf(studyTour.steps[study.done ? studyTour.steps.length - 1 : study.step].slide) : null;
-  const startTour = (tourId: string) => {
-    setPanel(null); closeDrawer(); setQuizOn(false); setAsk(null); setRouteEnds(null);
+  /**
+   * History: entering study mode pushes one entry and moving between steps only replaces it, so Back leaves study
+   * mode (after closing a drawer opened from it, which stacks its own entry on top, as everywhere). The URL names
+   * the chapter and step (#study/<chapter>/<step>), and the place is also kept per viewer for "Continue".
+   */
+  const studyEntry = useRef(false);
+  /** Set while exitStudy steps back through history, so the entry it lands on is not taken as a study link. */
+  const leaving = useRef(false);
+  /** A chapter to open once Back has removed the drawer's entry ("Study this step" from a drawer over study mode). */
+  const pending = useRef<{ tour: string; step: number } | null>(null);
+  const studyUrl = (s: { tour: string; step: number; done: boolean }) => studyHash(s.tour, s.done ? 'done' : tourById[s.tour].steps[s.step].id);
+  useEffect(() => {
+    if (!study) return;
+    if (!selRef.current) history.replaceState(history.state, '', studyUrl(study));
+    store.set('atlas-study-at', study.done ? '' : JSON.stringify({ tour: study.tour, step: tourById[study.tour].steps[study.step].id }));
+  }, [study]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** `adopt`: the current history entry already is this study link (Back/Forward onto it): use it, push nothing. */
+  const openStudy = (tourId: string, step: number, adopt = false) => {
+    setPanel(null); setQuizOn(false); setAsk(null); setRouteEnds(null); setPinned(null); setPeek(null);
+    const url = studyHash(tourId, tourById[tourId].steps[step].id);
+    if (adopt) studyEntry.current = history.state?.atlas === 'study';
+    else if (selRef.current && studyRef.current && studyEntry.current && history.state?.atlas === 'open') {
+      // a drawer opened from study mode: drop its entry, then carry on in the study entry below it
+      setSelection(null);
+      pending.current = { tour: tourId, step };
+      history.back();
+      return;
+    } else if (selRef.current) {
+      // the drawer's entry becomes the study entry
+      setSelection(null);
+      if (history.state?.atlas === 'open') { history.replaceState({ atlas: 'study' }, '', url); studyEntry.current = true; }
+    } else if (!studyRef.current) { history.pushState({ atlas: 'study' }, '', url); studyEntry.current = true; }
     // a chapter of the faded exam widens the switch to Both for now, so the walkthrough is never on faded ink
     const t = tourById[tourId];
     if (!inExam(t.part === 'III' || t.part === 'IV' ? 'final' : 'mid', scope)) setScope('both');
-    showStep(tourId, 0);
+    showStep(tourId, step);
   };
+  const exitStudy = () => {
+    if (!studyRef.current) return;
+    setStudy(null); setPeek(null);
+    const open = !!selRef.current && history.state?.atlas === 'open';
+    if (selRef.current) setSelection(null);
+    if (studyEntry.current || open) { leaving.current = true; history.go(studyEntry.current && open ? -2 : -1); }
+    else if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    studyEntry.current = false;
+  };
+  useEffect(() => {
+    document.title = selection ? `${titleOf(selection, scene)} · Metabolism Atlas`
+      : study ? `${tourById[study.tour].title} · Study · Metabolism Atlas` : 'Metabolism Atlas';
+  }, [selection, scene, study]);
+  /** Where the reader left off, if a chapter is unfinished. */
+  const resumeAt = (() => {
+    try {
+      const v = JSON.parse(store.get('atlas-study-at') || 'null');
+      const t = v ? tourById[v.tour] : undefined, i = t ? t.steps.findIndex((x) => x.id === v.step) : -1;
+      return t && i >= 0 ? { tour: v.tour as string, step: i } : null;
+    } catch { return null; }
+  })();
+  /** After the slide window is moved, resized, shown or hidden, frame the step again around it. */
+  const reframe = useCallback(() => { const s = studyRef.current; if (s && !s.done) frameStep(s.tour, s.step); }, [frameStep]);
+  useEffect(() => { const t = setTimeout(reframe, 60); return () => clearTimeout(t); }, [slidesOn, reframe]);
+  const studySlide = study && studyTour ? slideOf(studyTour.steps[study.done ? studyTour.steps.length - 1 : study.step].slide) : null;
+  const startTour = (tourId: string) => openStudy(tourId, 0);
   const finishTour = () => {
     if (!study || !studyTour) return;
     setStudy({ ...study, done: true, n: study.n + 1 });
@@ -233,13 +323,12 @@ export default function App() {
     const W = (x1 - x0) / (1 - res.l - res.r), H = (y1 - y0) / (1 - res.t - res.b);
     go({ x: x0 - res.l * W, y: y0 - res.t * H, w: W, h: H });
   };
+  const tourPlate = studyTour ? plateOfTour(studyTour, scene) : null;
   const quizTourPlate = () => {
-    if (!studyTour) return;
-    const first = studyTour.steps.find((s) => s.edge);
-    const plateId = first && scene.edges.find((e) => e.id === first.edge)?.plate;
-    const r = scene.regions.find((x) => x.id === plateId);
-    setStudy(null);
-    if (r) setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
+    const r = tourPlate?.own && scene.regions.find((x) => x.id === tourPlate.id);
+    if (!r) return;
+    exitStudy();
+    setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
     setQuizOn(true);
   };
 
@@ -298,7 +387,7 @@ export default function App() {
     if (next.has(k)) { if (next.size > 1) next.delete(k); } else next.add(k);
     return next;
   });
-  const toggleQuiz = () => { setQuizOn((v) => !v); setAsk(null); closeDrawer(); setRouteEnds(null); setStudy(null); };
+  const toggleQuiz = () => { setQuizOn((v) => !v); setAsk(null); if (studyRef.current) exitStudy(); else closeDrawer(); setRouteEnds(null); };
 
   // ── highlight counts (within scope) ───────────────────────────────
   const counts = useMemo(() => {
@@ -368,9 +457,10 @@ export default function App() {
             beside={!!selection} slideHidden={!slidesOn} onShowSlide={() => setSlidesOn(true)} onSelect={select}
             onStep={(i) => showStep(study.tour, i)} onFinish={finishTour} onReplay={() => showStep(study.tour, 0)}
             onNext={(() => { const i = tours.indexOf(studyTour); const nx = tours[i + 1]; return nx ? () => startTour(nx.id) : null; })()}
-            onQuiz={quizTourPlate} onExit={() => setStudy(null)} />
+            onQuiz={tourPlate?.own ? quizTourPlate : null} onExit={exitStudy} />
         )}
-        {study && studySlide && slidesOn && <SlideViewer slide={studySlide} phone={phone} onClose={() => setSlidesOn(false)} onMoved={reframe} />}
+        {study && studySlide && slidesOn && <SlideViewer slide={studySlide} peek={peek} phone={phone} onClose={() => setSlidesOn(false)} onMoved={reframe} />}
+        {!study && pinned && <SlideViewer slide={pinned} phone={phone} backLabel="Back to cited slide" onClose={() => setPinned(null)} />}
 
         {routeEnds && !study && (
           <RouteBar scene={scene} from={routeEnds.from} to={routeEnds.to} route={traced} onGo={go}
@@ -395,8 +485,8 @@ export default function App() {
 
         <Key open={keyOpen} onToggle={() => setKeyOpen((v) => { store.set('atlas-key', v ? '0' : '1'); return !v; })} showReg={showReg} />
 
-        {panel === 'study' && <StudyPanel done={studyDone} onStart={startTour} onClose={() => setPanel(null)} />}
-        {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onPick={pick} onClose={() => setPanel(null)} />}
+        {panel === 'study' && <StudyPanel done={studyDone} resume={resumeAt} onStart={startTour} onResume={(r) => openStudy(r.tour, r.step)} onClose={() => setPanel(null)} />}
+        {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onPick={pick} onStudy={startTour} onClose={() => setPanel(null)} />}
         {panel === 'layers' && (
           <LayersPanel counts={counts} coCounts={coCounts} filter={filter} onToggle={toggle} co={co} onToggleCo={toggleCo}
             showReg={showReg} onReg={setShowReg} onClear={clearHighlights} onClose={() => setPanel(null)} />
@@ -404,7 +494,8 @@ export default function App() {
 
         {selection && (
           <Drawer selection={selection} scene={scene} scope={scope} onClose={closeDrawer} onSelect={select} onGo={go} onCopyLink={copyLink}
-            onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} onRoute={startRoutePick} />
+            onEdit={(title, smiles) => { setEverEdited(true); setEditing({ title, smiles }); }} onRoute={startRoutePick}
+            onSlide={openSlide} onStudy={(at) => openStudy(at.tour, at.step)} />
         )}
 
         {!chrome && (

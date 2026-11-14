@@ -273,7 +273,9 @@ svg[data-lod="far"] .eline.irrev .shaft { stroke-width: 4.5; }
 .far-dot { fill: var(--ink); }
 .node.hidden .nbox { fill: var(--quiz-bg); stroke: var(--quiz); stroke-width: 1.4; stroke-dasharray: 4 3; }
 .node.hidden .node-label { fill: var(--quiz) !important; font-family: var(--f-sans) !important; font-weight: 700 !important; font-style: normal !important; }
-.node.flash .nbox, .node.flash .xref-hit { animation: flash 2.2s ease-out; }
+.node.flash .nbox, .node.flash .xref-hit, .node.flash .cardbox { animation: flash 2.2s ease-out; }
+/* in study mode the card a step is about stays outlined while the step is on screen */
+.node.kind-card.study-now .cardbox { stroke: var(--enz); stroke-width: 2.2; stroke-dasharray: none; }
 @keyframes flash { 0%, 40% { stroke: var(--enz); stroke-width: 4; fill: var(--enz-soft); } 100% { stroke-width: 0; } }
 
 .node.kind-card .cardbox { fill: var(--paper); stroke: var(--mid); stroke-width: 1; stroke-dasharray: 3 2.5; }
@@ -708,3 +710,16 @@ button.sb-chip:hover { border-color: var(--ink-3); background: var(--paper-2); }
 .eline.now.back .route-glow { stroke-dashoffset: -1; animation-name: draw-off; }
 @keyframes draw-off { from { stroke-dashoffset: -1; } to { stroke-dashoffset: 0; } }
 .elabel-g.now.back .t-in, .elabel-g.now.back .t-out { animation: tag-in .45s .9s both; }
+/* slide numbers in a citation open the slide */
+.cite-slide { border: 0; background: none; padding: 0 1px; color: var(--enz); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.cite-slide:hover { color: var(--ink); }
+.drawer .study-link { margin-top: 10px; }
+.toc-study button { display: inline-flex; align-items: center; gap: 5px; color: var(--enz); }
+@media (max-width: 720px) {
+  .sv-grip { display: none; }
+  .sv-head { gap: 0; padding-left: 10px; }
+  .sv-btn { width: 30px; }
+}
+.st-offline { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--hair-2); font-size: 12.5px; color: var(--ink-3); line-height: 1.4; }
+.st-offline .sb-btn { flex: none; font-size: 13px; padding: 5px 10px; }
+.st-offline .ok { color: var(--act); }

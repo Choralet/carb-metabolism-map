@@ -9,7 +9,9 @@ import { molPlaces, placesOf, viewAround, type Place } from './locate';
 import { geometryOf } from './map/geometry';
 import { MarkIcon, RegIcon } from './map/glyphs';
 import { Rich } from './rich';
-import { CheckIcon, CloseIcon, LinkIcon, RouteIcon } from './shell/icons';
+import { CheckIcon, CloseIcon, LinkIcon, RouteIcon, StudyIcon } from './shell/icons';
+import { slidesOf, type SlideRef } from './shell/SlideViewer';
+import { stepForEdge, stepForNode, tourById } from './data/tours';
 import { loadStructures } from './structures';
 
 interface Props {
@@ -24,6 +26,39 @@ interface Props {
   onCopyLink: () => Promise<boolean>;
   /** Start tracing a route from (or to) this molecule; the other end is picked next. */
   onRoute: (mol: string, end: 'from' | 'to') => void;
+  /** Show a cited lecture slide (Parts III and IV, which ship with the site). */
+  onSlide: (s: SlideRef) => void;
+  /** Open study mode at the step that covers this item. */
+  onStudy: (at: { tour: string; step: number }) => void;
+}
+
+/** "Lecture notes · Part III · slide 13, 17": each final-deck slide number opens that slide. */
+function Cite({ s, onSlide }: { s: string; onSlide: Props['onSlide'] }) {
+  const refs = slidesOf(s);
+  if (!refs.length) return <p className="slide">Lecture notes · <Rich s={s} /></p>;
+  let part = '';
+  const parts = s.split(/(Part (?:IV|III|II|I) · )/).map((seg, i) => {
+    const pm = seg.match(/^Part (IV|III|II|I) · $/);
+    if (pm) { part = pm[1]; return <span key={i}>{seg}</span>; }
+    if (part !== 'III' && part !== 'IV') return <span key={i}><Rich s={seg} /></span>;
+    const here = part as SlideRef['part'];
+    // numbers become buttons; words, commas and dashes stay text
+    return <span key={i}>{seg.split(/(\d+)/).map((t, k) => (/^\d+$/.test(t) && refs.some((r) => r.part === here && r.n === +t)
+      ? <button key={k} className="cite-slide" onClick={() => onSlide({ part: here, n: +t })} title={`Show Part ${here}, slide ${t}`}>{t}</button>
+      : t))}</span>;
+  });
+  return <p className="slide">Lecture notes · {parts}</p>;
+}
+
+/** "Study this step": where study mode walks through the selected item. */
+function StudyLink({ at, onStudy }: { at: { tour: string; step: number } | null; onStudy: Props['onStudy'] }) {
+  if (!at) return null;
+  const t = tourById[at.tour];
+  return (
+    <button className="enz-link study-link" onClick={() => onStudy(at)}>
+      <StudyIcon /> <span>Study this step · <Rich s={t.title} />, step {at.step + 1}</span>
+    </button>
+  );
 }
 
 function Structure({ molId, onEdit }: { molId: string; onEdit: Props['onEdit'] }) {
@@ -112,7 +147,7 @@ function Kicker({ exams, plate, what }: { exams: Exam[]; plate?: { plate: number
   );
 }
 
-function EnzymeView({ id, places, onEdit, onGo }: { id: string; places: Place[]; onEdit: Props['onEdit']; onGo: Props['onGo'] }) {
+function EnzymeView({ id, places, onEdit, onGo, onSlide }: { id: string; places: Place[]; onEdit: Props['onEdit']; onGo: Props['onGo']; onSlide: Props['onSlide'] }) {
   const e = enzById[id];
   const subs = (e.subs ?? []).filter((m) => molById[m]?.smiles);
   const prods = (e.prods ?? []).filter((m) => molById[m]?.smiles);
@@ -153,7 +188,7 @@ function EnzymeView({ id, places, onEdit, onGo }: { id: string; places: Place[];
         </section>
       )}
       <Places places={places} onGo={onGo} label="Drawn on" />
-      <p className="slide">Lecture notes · <Rich s={e.slide} /></p>
+      <Cite s={e.slide} onSlide={onSlide} />
     </>
   );
 }
@@ -176,7 +211,7 @@ function Harpoons() {
   );
 }
 
-export default function Drawer({ selection, scene, scope, onClose, onSelect, onGo, onEdit, onCopyLink, onRoute }: Props) {
+export default function Drawer({ selection, scene, scope, onClose, onSelect, onGo, onEdit, onCopyLink, onRoute, onSlide, onStudy }: Props) {
   const [copied, setCopied] = useState(false);
   useEffect(() => setCopied(false), [selection]);
   useEffect(() => {
@@ -187,6 +222,19 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
 
   const places = placesOf(selection, scene);
   const here = places.find((p) => inExam(p.exam, scope)) ?? places[0];
+  const studyAt = (() => {
+    if (selection.kind === 'enz') {
+      for (const e of scene.edges) if (e.enz === selection.id) { const at = stepForEdge(e.id); if (at) return at; }
+      return null;
+    }
+    if (selection.kind === 'node') return stepForNode(selection.id, scene.edges);
+    if (selection.kind === 'card') {
+      for (const n of scene.nodes) if (n.card === selection.id) { const at = stepForNode(n.id, scene.edges); if (at) return at; }
+      return null;
+    }
+    const anchor = regById[selection.id]?.anchor;
+    return anchor && 'edge' in anchor && anchor.edge ? stepForEdge(anchor.edge) : null;
+  })();
 
   let body: React.JSX.Element;
   if (selection.kind === 'reg') {
@@ -197,14 +245,14 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
         <h2><Rich s={r.title} /></h2>
         <RegFacts act={r.act} inh={r.inh} />
         {r.detail.map((t, i) => <p key={i}><Rich s={t} /></p>)}
-        <p className="slide">Lecture notes · <Rich s={r.slide} /></p>
+        <Cite s={r.slide} onSlide={onSlide} />
       </>
     );
   } else if (selection.kind === 'enz') {
     body = (
       <>
         <Kicker exams={examsOf(places)} plate={here?.plate} what="ENZYME" />
-        <EnzymeView id={selection.id} places={places} onEdit={onEdit} onGo={onGo} />
+        <EnzymeView id={selection.id} places={places} onEdit={onEdit} onGo={onGo} onSlide={onSlide} />
       </>
     );
   } else if (selection.kind === 'card') {
@@ -223,7 +271,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
           </section>
         )}
         {c.mols && <div className={`rxn-side wrap${c.mols.length > 1 ? ' multi' : ''}`}>{c.mols.map((m) => <Structure key={m} molId={m} onEdit={onEdit} />)}</div>}
-        <p className="slide">Lecture notes · <Rich s={c.slide} /></p>
+        <Cite s={c.slide} onSlide={onSlide} />
       </>
     );
   } else {
@@ -273,6 +321,7 @@ export default function Drawer({ selection, scene, scope, onClose, onSelect, onG
         <button className="icon-btn" onClick={onClose} aria-label="Close details"><CloseIcon /></button>
       </div>
       {body}
+      <StudyLink at={studyAt} onStudy={onStudy} />
     </aside>
   );
 }

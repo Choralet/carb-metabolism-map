@@ -176,7 +176,9 @@ An `xref` node is a note beside a molecule: `link` is the local anchor, and `tar
 - A step is one arrow (`edge`) or one drawn node (`node`), with a short `title`, a `say` of one or two plain sentences, and the `slide` it follows (`'Part III · slide 13'`). The slide window shows that slide.
   - `also` lights more arrows with the step (one precursor, several products); `back` runs the animation against a reversible arrow (glycerol 3-phosphate → DHAP).
   - Only what the slides show, in easy words. A step on a midterm arrow is allowed only where a final slide names it (`SHARED`).
-- `npm run check` rejects unknown ids, midterm-only arrows, missing slide images and chapters out of order.
+- `npm run check` rejects unknown ids, midterm-only arrows, missing slide images and chapters out of order, and warns about any content slide no step shows (title, reference and section-divider slides are listed in the validator).
+- The drawer's "Study this step" and the Plates panel's study buttons find chapters through `stepForEdge` / `stepForNode` (`tours.ts`) and each chapter's commonest plate, so new steps are reachable without extra wiring.
+- Slide numbers in any Part III/IV citation open that slide (`slidesOf` in `SlideViewer.tsx`); midterm slides are not shipped.
 - New slides: render the deck to `public/slides/p3|p4/<n>.webp` (1920 px wide; `pdftoppm -scale-to-x 1920` then `ffmpeg -c:v libwebp -quality 74`). They are cached at runtime, not precached.
 
 ### Route-tracer pools
@@ -197,9 +199,10 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
 - **Phones:** `PHONE_QUERY` (max-width 720px) changes camera framing only: the map opens at the top of glycolysis at reading size, and jumping to a plate opens its top-left at reading size (`regionView`). A desktop opens on the whole cell.
 - **The exam switch** (`inExam(tag, scope)` in `types.ts`) decides what fades. The quiz, the highlight counts and search ranking follow it. Routes always search the whole map. The drawer is coloured by the item's own exam, so a final card on a midterm plate reads as final.
 - **Deep links:**
-  - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`.
+  - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`; and `#study/<chapter>/<step id>` (or `/done`).
+  - Study mode pushes one entry on entering and replaces it as the step changes; a drawer opened from study mode stacks its own entry on top. So Back closes the drawer, then leaves study mode. `links.ts` · `App.tsx` (`openStudy`, `exitStudy`).
   - Opening the drawer pushes one history entry and switching selections replaces it, so Back closes the drawer. Keep that behaviour.
-- **localStorage** holds per-viewer conveniences only: `atlas-scope`, `atlas-theme`, `atlas-key`, `atlas-quiz`, `atlas-study` (finished study chapters), `atlas-slides` (the slide window's position and size). Wrap every access in try/catch.
+- **localStorage** holds per-viewer conveniences only: `atlas-scope`, `atlas-theme`, `atlas-key`, `atlas-quiz`, `atlas-study` (finished study chapters: a plain array of chapter ids), `atlas-study-at` (where the reader left off: `{ tour, step }`, step by id), `atlas-slides` (the slide window's position and size). Wrap every access in try/catch.
 - **`package-lock.json`:** don't regenerate it wholesale, because some npm versions drop platform `libc` fields. Make minimal changes and confirm with `npm ci`.
 
 ## Before you push
