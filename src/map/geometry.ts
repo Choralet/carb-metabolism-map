@@ -246,7 +246,17 @@ export function geometryOf(scene: Scene): Geometry {
   });
   const mid = scene.regions.filter((r) => r.part === 'I' || r.part === 'II');
   const fin = scene.regions.filter((r) => r.part === 'III' || r.part === 'IV');
-  const bounds = { mid: union(mid), final: union(fin.length ? fin : mid), both: union(scene.regions) };
+  // a scene without plates (the overview) is bounded by its compartments and everything drawn around them
+  const loose = () => {
+    const xs = scene.nodes.flatMap((n) => { const b = nodeBox(n); return [b.c.x - b.hw - 40, b.c.x + b.hw + 40]; });
+    const ys = scene.nodes.flatMap((n) => [n.y - 60, n.y + 60]);
+    (scene.compartments ?? []).forEach((c) => { xs.push(c.x, c.x + c.w); ys.push(c.y - 40, c.y + c.h + 50); });
+    const x = Math.min(...xs), y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+  };
+  const bounds = scene.regions.length
+    ? { mid: union(mid), final: union(fin.length ? fin : mid), both: union(scene.regions) }
+    : { mid: loose(), final: loose(), both: loose() };
   g = { nodeMap, routed, regGeoms, plateOf, edgePlate, bounds };
   geometries.set(scene, g);
   return g;

@@ -723,3 +723,21 @@ button.sb-chip:hover { border-color: var(--ink-3); background: var(--paper-2); }
 .st-offline { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--hair-2); font-size: 12.5px; color: var(--ink-3); line-height: 1.4; }
 .st-offline .sb-btn { flex: none; font-size: 13px; padding: 5px 10px; }
 .st-offline .ok { color: var(--act); }
+
+/* ── the big picture (overview page) ──────────────────────────────── */
+.ov-bar { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 16px; background: var(--panel); border: 1px solid var(--hair); border-left: 6px solid var(--fin); border-radius: 12px; box-shadow: 0 10px 30px rgba(40, 30, 15, .16); z-index: 6; }
+.ov-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ov-text b { font: 600 16px var(--f-display); color: var(--ink); }
+.ov-text span { font-size: 12.5px; color: var(--ink-3); line-height: 1.35; }
+.toc-overview { width: 100%; display: flex; flex-direction: column; gap: 2px; text-align: left; margin: 10px 0 4px; padding: 10px 12px; border: 1px solid var(--hair); border-left: 5px solid var(--fin); border-radius: 9px; background: var(--paper); color: inherit; font: inherit; cursor: pointer; }
+.toc-overview:hover { border-color: var(--ink-3); }
+.toc-ov-t { font: 600 15px var(--f-serif); color: var(--ink); }
+.toc-ov-s { font-size: 12.5px; color: var(--ink-3); }
+@media (max-width: 720px) {
+  .ov-bar { bottom: 10px; width: calc(100% - 16px); }
+  .ov-bar .sb-btn { padding: 7px 10px; }
+  /* keep the zoom buttons clear of the bar */
+  .canvas.overview-map .zoom { bottom: 104px; }
+}
+/* on the overview the pathway names are the point: bigger, in the accent ink */
+.overview-map .elabel-g > .tag { font: italic 500 14.5px var(--f-serif); fill: var(--enz); }

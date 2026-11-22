@@ -70,5 +70,25 @@ export default async function links({ browser, base, check: ok }) {
   ok(!(await p3.locator('.drawer').count()), 'an unknown id is ignored');
 
   ok(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
+  // the big picture: from the Plates panel, a compound opens on the detailed map, Back returns to the overview
+  const o = await ctx.newPage();
+  await o.goto(base, { waitUntil: 'networkidle' });
+  await o.click('button[title="Plates (table of contents)"]');
+  await o.click('.toc-overview');
+  await o.waitForSelector('.overview-map');
+  ok(new URL(o.url()).hash === '#overview' && /The big picture/.test(await o.title()), 'the Plates panel opens the big picture (#overview)');
+  await o.locator('[data-node="o_oaa"]').click();
+  await o.waitForTimeout(700);
+  ok(!(await o.locator('.overview-map').count()) && new URL(o.url()).hash === '#mol/oaa' && /Oxaloacetate/.test(await o.locator('.drawer h2').innerText()),
+    'a compound on the overview opens it on the detailed map');
+  await o.goBack(); await o.waitForTimeout(500);
+  ok((await o.locator('.overview-map').count()) === 1 && !(await o.locator('.drawer').count()), 'Back returns to the big picture');
+  await o.click('.ov-bar .sb-btn');
+  await o.waitForTimeout(400);
+  ok(!(await o.locator('.overview-map').count()) && !new URL(o.url()).hash, '"Detailed map" closes it');
+  await o.goto(`${base}#overview`, { waitUntil: 'networkidle' });
+  await o.reload({ waitUntil: 'networkidle' });
+  ok((await o.locator('.overview-map').count()) === 1, 'a #overview link opens it');
+  await o.close();
   await ctx.close();
 }

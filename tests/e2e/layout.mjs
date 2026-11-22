@@ -5,11 +5,7 @@ export default async function layout({ browser, base, check: ok }) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   await ctx.addInitScript(() => localStorage.setItem('atlas-scope', 'both'));
   const p = await ctx.newPage();
-  await p.goto(base, { waitUntil: 'networkidle' });
-  await p.waitForSelector('svg[data-lod]');
-  await p.waitForTimeout(300);
-
-  const found = await p.evaluate(() => {
+  const measure = () => p.evaluate(() => {
     const svg = document.querySelector('svg[data-lod]');
     svg.setAttribute('data-lod', 'near');
     const inv = svg.getScreenCTM().inverse();
@@ -65,8 +61,24 @@ export default async function layout({ browser, base, check: ok }) {
     });
     return { texts: texts.length, segs: segs.length, out: [...new Set(out)] };
   });
+  const report = (found, where) => ok(found.out.length === 0, found.out.length
+    ? `no label collides with another label or an arrow (${where}):\n      ${found.out.slice(0, 20).join('\n      ')}`
+    : `no label collides with another label or an arrow (${where})`);
 
+  await p.goto(base, { waitUntil: 'networkidle' });
+  await p.waitForSelector('svg[data-lod]');
+  await p.waitForTimeout(300);
+  const found = await measure();
   ok(found.texts > 800 && found.segs > 400, `measured ${found.texts} labels and ${found.segs} arrow segments`);
-  ok(found.out.length === 0, found.out.length ? `no label collides with another label or an arrow:\n      ${found.out.slice(0, 20).join('\n      ')}` : 'no label collides with another label or an arrow');
+  report(found, 'the map');
+
+  // the big-picture page is drawn by the same renderer on its own scene
+  await p.goto(`${base}#overview`, { waitUntil: 'networkidle' });
+  await p.reload({ waitUntil: 'networkidle' });
+  await p.waitForSelector('.overview-map svg[data-lod]');
+  await p.waitForTimeout(300);
+  const ov = await measure();
+  ok(ov.texts > 40 && ov.segs > 40, `measured ${ov.texts} labels and ${ov.segs} arrow segments on the overview`);
+  report(ov, 'the overview');
   await ctx.close();
 }

@@ -18,6 +18,8 @@ import TopBar, { type Panel } from './shell/TopBar';
 import { measureReserve, plateOfTour, StudyBar, StudyPanel, stepView, tourTrail } from './shell/Study';
 import SlideViewer, { slideOf, type SlideRef } from './shell/SlideViewer';
 import { tourById, tours } from './data/tours';
+import { OVERVIEW_TARGET, overviewScene } from './data/overview';
+import OverviewBar from './shell/OverviewBar';
 import { cofactors } from './data/cofactors';
 import { bestPlace, PHONE_QUERY, placesOf, regionView, viewAround } from './locate';
 import { copyText, currentView, parseHash, studyHash, toHash, type Link } from './links';
@@ -39,6 +41,8 @@ const store = {
 };
 
 const inScope = (x: { exam?: ExamTag }, s: Scope) => inExam(x.exam, s);
+const NONE_CLS = new Set<EnzClass>();
+const NONE_CO = new Set<CoKey>();
 
 /**
  * Where the camera starts: on a desktop the whole cell, the big picture; on a phone the top of glycolysis at reading
@@ -135,7 +139,22 @@ export default function App() {
   const [editing, setEditing] = useState<{ title: string; smiles: string } | null>(null);
   const [everEdited, setEverEdited] = useState(false);
 
-  const go = useCallback((view: View) => setFocus((f) => ({ view, n: f.n + 1 })), []);
+  // ── the big picture ───────────────────────────────────────────────
+  // A one-page overview drawn on its own small scene. While it is open the detailed map is unmounted, so its camera
+  // is remembered and restored; anything that moves the detailed map's camera (search, plates, study) closes it.
+  const [overview, setOverview] = useState(() => !!link?.overview);
+  const ovRef = useRef(overview);
+  ovRef.current = overview;
+  const mainView = useRef<View | null>(null);
+  const go = useCallback((view: View) => {
+    if (ovRef.current) {
+      ovRef.current = false;
+      setOverview(false);
+      mainView.current = view;
+      if (history.state?.atlas === 'overview') history.replaceState(null, '', location.pathname + location.search);
+    }
+    setFocus((f) => ({ view, n: f.n + 1 }));
+  }, []);
 
   // ── deep links ────────────────────────────────────────────────────
   // Opening the drawer from the bare map pushes one history entry; moving between selections replaces it, so Back
@@ -160,6 +179,9 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       const l = parseHash(location.hash);
+      // the overview: Back onto it reopens it, Back off it returns to the detailed map where it was
+      if (l?.overview) { if (!ovRef.current) { mainView.current = currentView() ?? null; setSelection(null); setOverview(true); } return; }
+      if (ovRef.current) setOverview(false);
       if (leaving.current) {
         // exitStudy stepped back: wherever that lands, study mode stays closed
         leaving.current = false;
@@ -294,8 +316,9 @@ export default function App() {
   };
   useEffect(() => {
     document.title = selection ? `${titleOf(selection, scene)} · Metabolism Atlas`
-      : study ? `${tourById[study.tour].title} · Study · Metabolism Atlas` : 'Metabolism Atlas';
-  }, [selection, scene, study]);
+      : study ? `${tourById[study.tour].title} · Study · Metabolism Atlas`
+        : overview ? 'The big picture · Metabolism Atlas' : 'Metabolism Atlas';
+  }, [selection, scene, study, overview]);
   /** Where the reader left off, if a chapter is unfinished. */
   const resumeAt = (() => {
     try {
@@ -330,6 +353,38 @@ export default function App() {
     exitStudy();
     setWhere({ kind: 'plate', plate: r.id, title: r.title, no: r.plate });
     setQuizOn(true);
+  };
+
+  const ovStart = useMemo(() => {
+    // a desktop sees the whole page; a phone opens on its middle (the carbohydrate hubs everything joins) at reading size
+    if (!phone) return geometryOf(overviewScene).bounds.both;
+    return { x: 960 - 330, y: 200, w: 660, h: 900 };
+  }, [phone]);
+  const openOverview = () => {
+    setPanel(null); setAsk(null); setRouteEnds(null); setQuizOn(false);
+    if (studyRef.current) exitStudy();
+    mainView.current = currentView() ?? null;
+    if (selRef.current) { setSelection(null); history.replaceState({ atlas: 'overview' }, '', '#overview'); }
+    else history.pushState({ atlas: 'overview' }, '', '#overview');
+    setOverview(true);
+  };
+  const closeOverview = () => {
+    if (history.state?.atlas === 'overview') history.back();
+    else { history.replaceState(null, '', location.pathname + location.search); setOverview(false); }
+  };
+  /** A compound tapped on the overview: fly there on the detailed map and open it. Back returns to the overview. */
+  const pickOverview = (sel: Selection) => {
+    const t = sel && sel.kind === 'node' ? OVERVIEW_TARGET[sel.id] : null;
+    if (!t) return;
+    const main = t.kind === 'node' ? { kind: 'node' as const, id: t.id } : { kind: 'card' as const, id: t.id };
+    const p = t.kind === 'node' ? geometryOf(scene).nodeMap[t.id] : bestPlace(placesOf(main, scene), scope);
+    if (!p) return;
+    const v = viewAround(p);
+    mainView.current = v;
+    setOverview(false);
+    setFocus((f) => ({ view: v, n: f.n + 1 }));
+    history.pushState({ atlas: 'open' }, '', toHash(main));
+    setSelection(main);
   };
 
   /** The exam switch only changes what is highlighted; the camera stays where it is. */
@@ -387,7 +442,7 @@ export default function App() {
     if (next.has(k)) { if (next.size > 1) next.delete(k); } else next.add(k);
     return next;
   });
-  const toggleQuiz = () => { setQuizOn((v) => !v); setAsk(null); if (studyRef.current) exitStudy(); else closeDrawer(); setRouteEnds(null); };
+  const toggleQuiz = () => { if (ovRef.current) closeOverview(); setQuizOn((v) => !v); setAsk(null); if (studyRef.current) exitStudy(); else closeDrawer(); setRouteEnds(null); };
 
   // ── highlight counts (within scope) ───────────────────────────────
   const counts = useMemo(() => {
@@ -449,8 +504,14 @@ export default function App() {
       )}
 
       <main>
-        <Diagram scene={scene} scope={scope} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={select}
-          focus={focus} start={start} quiz={quiz} onReveal={reveal} route={studyHi ?? routeHi} tour={studyNow} />
+        {overview ? (
+          <Diagram key="overview" scene={overviewScene} scope="both" filter={NONE_CLS} co={NONE_CO} showReg={false} selection={null} onSelect={pickOverview}
+            focus={{ view: ovStart, n: 0 }} start={ovStart} quiz={{ ...quiz, on: false }} onReveal={reveal} route={null} overview />
+        ) : (
+          <Diagram key="map" scene={scene} scope={scope} filter={filter} co={co} showReg={showReg} selection={selection} onSelect={select}
+            focus={focus} start={mainView.current ?? start} quiz={quiz} onReveal={reveal} route={studyHi ?? routeHi} tour={studyNow} />
+        )}
+        {overview && <OverviewBar phone={phone} onClose={closeOverview} />}
 
         {study && studyTour && (
           <StudyBar scene={scene} tour={studyTour} step={study.step} done={study.done}
@@ -486,7 +547,7 @@ export default function App() {
         <Key open={keyOpen} onToggle={() => setKeyOpen((v) => { store.set('atlas-key', v ? '0' : '1'); return !v; })} showReg={showReg} />
 
         {panel === 'study' && <StudyPanel done={studyDone} resume={resumeAt} onStart={startTour} onResume={(r) => openStudy(r.tour, r.step)} onClose={() => setPanel(null)} />}
-        {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onPick={pick} onStudy={startTour} onClose={() => setPanel(null)} />}
+        {panel === 'plates' && <PlatesPanel scene={scene} scope={scope} onGo={(v) => { go(v); if (phone) setPanel(null); }} onPick={pick} onStudy={startTour} onOverview={openOverview} onClose={() => setPanel(null)} />}
         {panel === 'layers' && (
           <LayersPanel counts={counts} coCounts={coCounts} filter={filter} onToggle={toggle} co={co} onToggleCo={toggleCo}
             showReg={showReg} onReg={setShowReg} onClear={clearHighlights} onClose={() => setPanel(null)} />
