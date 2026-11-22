@@ -37,6 +37,8 @@ interface PlatesProps {
   scene: Scene; scope: Scope; onGo: (v: View) => void; onPick: (s: Selection, v: View) => void;
   /** Start the study chapter that walks a plate. */
   onStudy: (tourId: string) => void;
+  /** Open the one-page overview. */
+  onOverview: () => void;
   onClose: () => void;
 }
 
@@ -50,7 +52,7 @@ function chapterPlates(scene: Scene): Map<string, string[]> {
   return byPlate;
 }
 
-export function PlatesPanel({ scene, scope, onGo, onPick, onStudy, onClose }: PlatesProps) {
+export function PlatesPanel({ scene, scope, onGo, onPick, onStudy, onOverview, onClose }: PlatesProps) {
   const ref = useRef<HTMLDivElement>(null);
   usePanelDismiss(onClose, ref);
   const parts = (['I', 'II', 'III', 'IV'] as Part[]).filter((p) => scene.regions.some((r) => r.part === p));
@@ -66,6 +68,10 @@ export function PlatesPanel({ scene, scope, onGo, onPick, onStudy, onClose }: Pl
     <div className="panel plates-panel" ref={ref} role="dialog" aria-label="Plates">
       <div className="panel-head"><h2>Plates</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><CloseIcon /></button></div>
       <div className="panel-body">
+        <button className="toc-overview" onClick={onOverview}>
+          <span className="toc-ov-t">The big picture</span>
+          <span className="toc-ov-s">Final exam on one page: the key compounds and where each one goes</span>
+        </button>
         {parts.map((p) => {
           const dim = scope !== 'both' && (scope === 'final') !== isFinal(p);
           return (

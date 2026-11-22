@@ -48,9 +48,11 @@ interface Props {
    * and its cofactors animating in); `node` a molecule to flash instead. `n` restarts the animation on replay.
    */
   tour?: { edge?: string; node?: string; back?: boolean; n: number } | null;
+  /** The overview: a one-page map whose labels stay drawn at every zoom (it is meant to be seen whole). */
+  overview?: boolean;
 }
 
-export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route, tour }: Props) {
+export default function Diagram({ scene, scope, filter, co, showReg, selection, onSelect, focus, start, quiz, onReveal, route, tour, overview }: Props) {
   const { nodeMap, routed, regGeoms, plateOf, bounds } = geometryOf(scene);
   /** Widest view (map units): enough to see the whole map at once, whichever parts it has, on a screen of any shape. */
   const maxW = () => Math.max(9000, bounds.both.w + 800, ((bounds.both.h + 800) * size.current.w) / size.current.h);
@@ -62,6 +64,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   const raf = useRef(0);
   const size = useRef({ w: 1200, h: 800 });
   const lod = useRef('');
+  const allNear = useRef(!!overview);
   // The camera lives outside React: pan, pinch, wheel and animations only rewrite the SVG's viewBox attribute, so a
   // gesture never re-renders the hundreds of elements on the map.
   const vbRef = useRef<View>({ x: 0, y: 0, w: 2300, h: 1400 });
@@ -70,7 +73,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
     const el = svg.current;
     if (!el) return;
     el.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
-    const next = lodFor(size.current.w / v.w);
+    const next = allNear.current ? 'near' : lodFor(size.current.w / v.w);
     if (next !== lod.current) { lod.current = next; el.setAttribute('data-lod', next); }
   }, []);
 
@@ -657,7 +660,7 @@ export default function Diagram({ scene, scope, filter, co, showReg, selection, 
   });
 
   return (
-    <div className="canvas" ref={wrap}>
+    <div className={`canvas${overview ? ' overview-map' : ''}`} ref={wrap}>
       <svg ref={svg} onPointerDown={onPointerDown} onClick={() => { if (!drag.current?.moved) onSelect(null); }}
         onMouseOver={(ev) => { if (ptrs.current.size) return; const t = (ev.target as Element).closest('[data-enz]'); setHot(t ? t.getAttribute('data-enz') : null); }}
         onMouseLeave={() => setHot(null)}

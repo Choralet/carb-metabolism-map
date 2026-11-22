@@ -14,6 +14,7 @@ import { SHARED, SHARED_LINES } from '../src/data/atlas.ts';
 import { MOVED_NODES } from '../src/data/moved.ts';
 import { examOfSlide } from '../src/data/types.ts';
 import { tours } from '../src/data/tours.ts';
+import { overviewScene, OVERVIEW_TARGET } from '../src/data/overview.ts';
 
 const errors = [];
 const warnings = [];
@@ -200,6 +201,24 @@ for (const id of Object.keys(structures)) if (!mol.has(id)) warn(`structures.jso
   const skip = { III: [1, 2, 3, 23], IV: [1, 2, 3, 21, 29] }, last = { III: 47, IV: 38 };
   for (const part of ['III', 'IV']) for (let k = 1; k <= last[part]; k++)
     if (!skip[part].includes(k) && !cited[part]?.has(k)) warn(`study mode never shows Part ${part} slide ${k}`);
+}
+
+// the big picture: its own small scene; every compound is drawn from the registry and links to the detailed map
+{
+  const ids = new Set();
+  for (const n of overviewScene.nodes) {
+    if (ids.has(n.id)) err(`overview: duplicate node "${n.id}"`);
+    ids.add(n.id);
+    if (n.mol && !mol.has(n.mol)) err(`overview node ${n.id}: unknown molecule "${n.mol}"`);
+    const t = OVERVIEW_TARGET[n.id];
+    if (!t) err(`overview node ${n.id}: no target on the detailed map (OVERVIEW_TARGET)`);
+    else if (t.kind === 'node' && !desktopScene.nodes.some((x) => x.id === t.id)) err(`overview node ${n.id}: target node "${t.id}" is not on the map`);
+    else if (t.kind === 'card' && !desktopScene.nodes.some((x) => x.card === t.id)) err(`overview node ${n.id}: target card "${t.id}" is not on the map`);
+  }
+  for (const e of overviewScene.edges) {
+    for (const end of [e.from, e.to, e.feed, e.out].filter(Boolean)) if (!ids.has(end)) err(`overview edge ${e.id}: unknown node "${end}"`);
+  }
+  for (const id of Object.keys(OVERVIEW_TARGET)) if (!ids.has(id)) warn(`OVERVIEW_TARGET names "${id}", which the overview does not draw`);
 }
 
 for (const w of warnings) console.log(`  warn  ${w}`);

@@ -80,6 +80,7 @@ Data (`src/data/`):
 - One scene serves desktop and phone; plates stay at most ~1300 units wide.
 - `pools.ts` — the route tracer's compartment splits (see Recipes).
 - `tours.ts` — study mode's chapters (final exam only): steps in slide order, each an arrow or molecule with a short narration and its slide.
+- `overview.ts` — "The big picture": a one-page simplified scene of the final exam (hub compounds only, arrows named by pathway), drawn by the same renderer, with `OVERVIEW_TARGET` linking each compound to its node or card on the detailed map.
 - `chem.ts` — `cx()`, which builds SMILES with labelled pseudo-atoms (R, CoA, ACP).
 - `structures.json` — generated. Don't edit it by hand.
 
@@ -181,6 +182,11 @@ An `xref` node is a note beside a molecule: `link` is the local anchor, and `tar
 - Slide numbers in any Part III/IV citation open that slide (`slidesOf` in `SlideViewer.tsx`); midterm slides are not shipped.
 - New slides: render the deck to `public/slides/p3|p4/<n>.webp` (1920 px wide; `pdftoppm -scale-to-x 1920` then `ffmpeg -c:v libwebp -quality 74`). They are cached at runtime, not precached.
 
+### The big picture (overview)
+- One page, final exam only: the hub compounds and where each goes, every arrow labelled with its pathway (no enzymes or cofactors). Carbohydrate hubs appear only as connection points. Laid out like the main map: lipids left, carbohydrate hubs middle, nitrogen right, the mitochondrion below, diet and other tissues outside the cell.
+- It has no plates; geometry bounds it by its compartments, and `Diagram`'s `overview` prop keeps labels drawn at every zoom.
+- Adding a compound: a node in `overview.ts` plus its `OVERVIEW_TARGET`. `npm run check` rejects unknown molecules, ids and targets; the layout suite checks the overview's labels too.
+
 ### Route-tracer pools
 When you add a node for a molecule that exists in both the matrix and the cytosol, list the node in `pools.ts`. Examples: acetyl-CoA, fatty acyl-CoA, oxaloacetate, malate, citrate, aspartate, glutamate. Otherwise routes jump straight across membranes.
 
@@ -199,7 +205,8 @@ When you add a node for a molecule that exists in both the matrix and the cytoso
 - **Phones:** `PHONE_QUERY` (max-width 720px) changes camera framing only: the map opens at the top of glycolysis at reading size, and jumping to a plate opens its top-left at reading size (`regionView`). A desktop opens on the whole cell.
 - **The exam switch** (`inExam(tag, scope)` in `types.ts`) decides what fades. The quiz, the highlight counts and search ranking follow it. Routes always search the whole map. The drawer is coloured by the item's own exam, so a final card on a midterm plate reads as final.
 - **Deep links:**
-  - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`; and `#study/<chapter>/<step id>` (or `/done`).
+  - Formats: `#enz/<id>`, `#mol/<node>`, `#card/<id>`, `#reg/<id>`, `#plate/<n>`, with an optional view `@cx,cy,width`; `#study/<chapter>/<step id>` (or `/done`); and `#overview`.
+  - The overview pushes one entry; a compound tapped on it opens the detailed map with that item's drawer on top, so Back returns to the overview.
   - Study mode pushes one entry on entering and replaces it as the step changes; a drawer opened from study mode stacks its own entry on top. So Back closes the drawer, then leaves study mode. `links.ts` · `App.tsx` (`openStudy`, `exitStudy`).
   - Opening the drawer pushes one history entry and switching selections replaces it, so Back closes the drawer. Keep that behaviour.
 - **localStorage** holds per-viewer conveniences only: `atlas-scope`, `atlas-theme`, `atlas-key`, `atlas-quiz`, `atlas-study` (finished study chapters: a plain array of chapter ids), `atlas-study-at` (where the reader left off: `{ tour, step }`, step by id), `atlas-slides` (the slide window's position and size). Wrap every access in try/catch.
